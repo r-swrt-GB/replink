@@ -1,0 +1,20 @@
+### Likes API Testing
+
+### Health Check
+GET http://localhost:8000/api/posts/123e4567-e89b-12d3-a456-426614174000/likes
+
+### Like a Post
+POST http://localhost:8000/api/posts/123e4567-e89b-12d3-a456-426614174000/likes
+Authorization: Bearer YOUR_JWT_TOKEN
+
+### Unlike a Post
+DELETE http://localhost:8000/api/posts/123e4567-e89b-12d3-a456-426614174000/likes
+Authorization: Bearer YOUR_JWT_TOKEN
+
+### Get Like Count
+GET http://localhost:8000/api/posts/123e4567-e89b-12d3-a456-426614174000/likes
+Authorization: Bearer YOUR_JWT_TOKEN
+
+### Check if User Liked Post
+GET http://localhost:8000/api/posts/123e4567-e89b-12d3-a456-426614174000/likes/me
+Authorization: Bearer YOUR_JWT_TOKEN

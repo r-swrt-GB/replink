@@ -49,6 +49,15 @@ logs-posts: ## View posts-api logs
 logs-feed: ## View feed-api logs
 	docker-compose logs -f feed-api
 
+logs-comments: ## View comments-api logs
+	docker-compose logs -f comments-api
+
+logs-likes: ## View likes-api logs
+	docker-compose logs -f likes-api
+
+logs-commentslikes: ## View commentslikes-api logs (legacy)
+	docker-compose logs -f commentslikes-api
+
 logs-graph: ## View socialgraph-api logs
 	docker-compose logs -f socialgraph-api
 
@@ -67,6 +76,8 @@ migrate: ## Run database migrations for all services
 	docker-compose exec users-api dotnet ef database update || true
 	docker-compose exec posts-api dotnet ef database update || true
 	docker-compose exec commentslikes-api dotnet ef database update || true
+	docker-compose exec comments-api dotnet ef database update || true
+	docker-compose exec likes-api dotnet ef database update || true
 	@echo "Migrations complete!"
 
 seed: ## Seed Neo4j with sample data

@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 networks:
   replink-network:
@@ -57,15 +57,32 @@ services:
       timeout: 5s
       retries: 5
 
-  commentslikes-db:
+  comments-db:
     image: postgres:15-alpine
-    container_name: replink-commentslikes-db
+    container_name: replink-comments-db
     environment:
-      POSTGRES_DB: ${COMMENTSLIKES_DB_NAME}
+      POSTGRES_DB: ${COMMENTS_DB_NAME}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - commentslikes-db-data:/var/lib/postgresql/data
+      - comments-db-data:/var/lib/postgresql/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  likes-db:
+    image: postgres:15-alpine
+    container_name: replink-likes-db
+    environment:
+      POSTGRES_DB: ${LIKES_DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - likes-db-data:/var/lib/postgresql/data
     networks:
       - replink-network
     healthcheck:
@@ -82,15 +99,19 @@ services:
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: apoc.*
     ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
     volumes:
       - neo4j-data:/data
       - neo4j-logs:/logs
     networks:
       - replink-network
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER} -p ${NEO4J_PASSWORD} 'RETURN 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          "cypher-shell -u ${NEO4J_USER} -p ${NEO4J_PASSWORD} 'RETURN 1'",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -103,7 +124,7 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     ports:
-      - "15672:15672"  # Management UI
+      - "15672:15672" # Management UI
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     networks:
@@ -184,19 +205,37 @@ services:
     networks:
       - replink-network
 
-  commentslikes-api:
+  comments-api:
     build:
-      context: ./services/commentslikes-api
+      context: ./services/comments-api
       dockerfile: Dockerfile
-    container_name: replink-commentslikes-api
+    container_name: replink-comments-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${COMMENTSLIKES_CONNECTION_STRING}
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=${COMMENTS_CONNECTION_STRING}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      commentslikes-db:
+      comments-db:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  likes-api:
+    build:
+      context: ./services/likes-api
+      dockerfile: Dockerfile
+    container_name: replink-likes-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${LIKES_CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      likes-db:
         condition: service_healthy
     networks:
       - replink-network
@@ -256,7 +295,8 @@ services:
       - auth-api
       - users-api
       - posts-api
-      - commentslikes-api
+      - comments-api
+      - likes-api
       - socialgraph-api
       - feed-api
     networks:
@@ -281,7 +321,8 @@ volumes:
   auth-db-data:
   users-db-data:
   posts-db-data:
-  commentslikes-db-data:
+  comments-db-data:
+  likes-db-data:
   neo4j-data:
   neo4j-logs:
   rabbitmq-data:

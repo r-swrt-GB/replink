@@ -46,16 +46,85 @@
       }
     },
     {
-      "DownstreamPathTemplate": "/api/commentslikes/{everything}",
+      "DownstreamPathTemplate": "/api/health",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "commentslikes-api",
+          "Host": "comments-api",
           "Port": 80
         }
       ],
-      "UpstreamPathTemplate": "/api/commentslikes/{everything}",
+      "UpstreamPathTemplate": "/api/comments/health",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/comments/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "comments-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/comments/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/health",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "likes-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/api/likes/health",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/posts/{postId}/likes/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "likes-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/api/posts/{postId}/likes/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/posts/{postId}/likes",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "likes-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/api/posts/{postId}/likes",
+      "UpstreamHttpMethod": [ "GET", "POST", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/posts/{postId}/comments",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "comments-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/posts/{postId}/comments",
+      "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"
       }
