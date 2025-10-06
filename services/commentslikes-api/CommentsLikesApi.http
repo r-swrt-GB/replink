@@ -1,0 +1,6 @@
+@CommentsLikesApi_HostAddress = http://localhost:5065
+
+GET {{CommentsLikesApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

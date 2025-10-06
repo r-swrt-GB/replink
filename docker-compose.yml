@@ -1,0 +1,288 @@
+version: '3.8'
+
+networks:
+  replink-network:
+    driver: bridge
+
+services:
+  # Databases
+  identity-db:
+    image: postgres:15-alpine
+    container_name: replink-identity-db
+    environment:
+      POSTGRES_DB: ${IDENTITY_DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - identity-db-data:/var/lib/postgresql/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  users-db:
+    image: postgres:15-alpine
+    container_name: replink-users-db
+    environment:
+      POSTGRES_DB: ${USERS_DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - users-db-data:/var/lib/postgresql/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  posts-db:
+    image: postgres:15-alpine
+    container_name: replink-posts-db
+    environment:
+      POSTGRES_DB: ${POSTS_DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - posts-db-data:/var/lib/postgresql/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  commentslikes-db:
+    image: postgres:15-alpine
+    container_name: replink-commentslikes-db
+    environment:
+      POSTGRES_DB: ${COMMENTSLIKES_DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - commentslikes-db-data:/var/lib/postgresql/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5.15
+    container_name: replink-neo4j
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER} -p ${NEO4J_PASSWORD} 'RETURN 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Message Queue (Optional)
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: replink-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cache (Optional)
+  redis:
+    image: redis:7-alpine
+    container_name: replink-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Microservices
+  identity-api:
+    build:
+      context: ./services/identity-api
+      dockerfile: Dockerfile
+    container_name: replink-identity-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${IDENTITY_CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      identity-db:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  users-api:
+    build:
+      context: ./services/users-api
+      dockerfile: Dockerfile
+    container_name: replink-users-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${USERS_CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      users-db:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  posts-api:
+    build:
+      context: ./services/posts-api
+      dockerfile: Dockerfile
+    container_name: replink-posts-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${POSTS_CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - RabbitMQ__Host=${RABBITMQ_HOST}
+    depends_on:
+      posts-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  commentslikes-api:
+    build:
+      context: ./services/commentslikes-api
+      dockerfile: Dockerfile
+    container_name: replink-commentslikes-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${COMMENTSLIKES_CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      commentslikes-db:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  socialgraph-api:
+    build:
+      context: ./services/socialgraph-api
+      dockerfile: Dockerfile
+    container_name: replink-socialgraph-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  feed-api:
+    build:
+      context: ./services/feed-api
+      dockerfile: Dockerfile
+    container_name: replink-feed-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - Services__SocialGraphApi=${SOCIALGRAPH_API_URL}
+      - Services__PostsApi=${POSTS_API_URL}
+      - Redis__ConnectionString=${REDIS_HOST}:${REDIS_PORT}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  # API Gateway
+  gateway:
+    build:
+      context: ./gateway/OcelotApiGw
+      dockerfile: Dockerfile
+    container_name: replink-gateway
+    ports:
+      - "8000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      - identity-api
+      - users-api
+      - posts-api
+      - commentslikes-api
+      - socialgraph-api
+      - feed-api
+    networks:
+      - replink-network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend/web
+      dockerfile: Dockerfile
+    container_name: replink-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=${VITE_API_BASE}
+    depends_on:
+      - gateway
+    networks:
+      - replink-network
+
+volumes:
+  identity-db-data:
+  users-db-data:
+  posts-db-data:
+  commentslikes-db-data:
+  neo4j-data:
+  neo4j-logs:
+  rabbitmq-data:
+  redis-data:
