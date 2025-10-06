@@ -179,5 +179,6 @@ finally
 // Response models
 public class FeedSourcesResponse
 {
+    [System.Text.Json.Serialization.JsonPropertyName("userIds")]
     public List<string> UserIds { get; set; } = new();
 }

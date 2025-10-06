@@ -21,6 +21,12 @@ try
     builder.Services.AddDbContext<PostsDbContext>(options =>
         options.UseNpgsql(connectionString));
 
+    // Add HttpClient for calling Likes API
+    builder.Services.AddHttpClient("LikesApi", client =>
+    {
+        client.BaseAddress = new Uri("http://likes-api:8080");
+    });
+
     // JWT Configuration
     var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "your-super-secret-jwt-key-change-this-in-production";
     var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "RepLink";
@@ -86,7 +92,6 @@ try
             MediaUrl = request.MediaUrl ?? string.Empty,
             Hashtags = request.Hashtags ?? Array.Empty<string>(),
             CreatedAt = DateTime.UtcNow,
-            LikesCount = 0,
             CommentsCount = 0
         };
 
@@ -99,7 +104,7 @@ try
     }).RequireAuthorization();
 
     // Get all posts
-    app.MapGet("/api/posts", async (PostsDbContext db, int? limit, int? offset) =>
+    app.MapGet("/api/posts", async (HttpContext context, PostsDbContext db, IHttpClientFactory httpClientFactory, int? limit, int? offset) =>
     {
         var query = db.Posts.OrderByDescending(p => p.CreatedAt);
 
@@ -108,11 +113,63 @@ try
             .Take(limit ?? 20)
             .ToListAsync();
 
-        return Results.Ok(posts);
+        // Fetch like counts for all posts
+        var httpClient = httpClientFactory.CreateClient("LikesApi");
+
+        // Forward the Authorization header
+        var token = context.Request.Headers["Authorization"].ToString();
+        if (!string.IsNullOrEmpty(token))
+        {
+            httpClient.DefaultRequestHeaders.Add("Authorization", token);
+        }
+
+        var postsWithLikes = new List<object>();
+
+        foreach (var post in posts)
+        {
+            try
+            {
+                var response = await httpClient.GetAsync($"/api/posts/{post.Id}/likes");
+                var likesCount = 0;
+                if (response.IsSuccessStatusCode)
+                {
+                    var likesData = await response.Content.ReadFromJsonAsync<LikesResponse>();
+                    likesCount = likesData?.LikesCount ?? 0;
+                }
+
+                postsWithLikes.Add(new
+                {
+                    post.Id,
+                    post.UserId,
+                    post.Caption,
+                    post.MediaUrl,
+                    post.Hashtags,
+                    post.CreatedAt,
+                    LikesCount = likesCount,
+                    post.CommentsCount
+                });
+            }
+            catch
+            {
+                postsWithLikes.Add(new
+                {
+                    post.Id,
+                    post.UserId,
+                    post.Caption,
+                    post.MediaUrl,
+                    post.Hashtags,
+                    post.CreatedAt,
+                    LikesCount = 0,
+                    post.CommentsCount
+                });
+            }
+        }
+
+        return Results.Ok(postsWithLikes);
     }).RequireAuthorization();
 
     // Get single post
-    app.MapGet("/api/posts/{id:guid}", async (Guid id, PostsDbContext db) =>
+    app.MapGet("/api/posts/{id:guid}", async (Guid id, HttpContext context, PostsDbContext db, IHttpClientFactory httpClientFactory) =>
     {
         var post = await db.Posts.FindAsync(id);
 
@@ -121,11 +178,47 @@ try
             return Results.NotFound(new { error = "Post not found" });
         }
 
-        return Results.Ok(post);
+        // Fetch like count from Likes API
+        var httpClient = httpClientFactory.CreateClient("LikesApi");
+        var likesCount = 0;
+        try
+        {
+            // Forward the Authorization header
+            var token = context.Request.Headers["Authorization"].ToString();
+            if (!string.IsNullOrEmpty(token))
+            {
+                httpClient.DefaultRequestHeaders.Add("Authorization", token);
+            }
+
+            var response = await httpClient.GetAsync($"/api/posts/{post.Id}/likes");
+            if (response.IsSuccessStatusCode)
+            {
+                var likesData = await response.Content.ReadFromJsonAsync<LikesResponse>();
+                likesCount = likesData?.LikesCount ?? 0;
+            }
+        }
+        catch
+        {
+            // If Likes API fails, default to 0
+        }
+
+        var postWithLikes = new
+        {
+            post.Id,
+            post.UserId,
+            post.Caption,
+            post.MediaUrl,
+            post.Hashtags,
+            post.CreatedAt,
+            LikesCount = likesCount,
+            post.CommentsCount
+        };
+
+        return Results.Ok(postWithLikes);
     }).RequireAuthorization();
 
     // Get user's posts
-    app.MapGet("/api/posts/user/{userId:guid}", async (Guid userId, PostsDbContext db, int? limit, int? offset) =>
+    app.MapGet("/api/posts/user/{userId:guid}", async (Guid userId, HttpContext context, PostsDbContext db, IHttpClientFactory httpClientFactory, int? limit, int? offset) =>
     {
         var posts = await db.Posts
             .Where(p => p.UserId == userId)
@@ -134,7 +227,59 @@ try
             .Take(limit ?? 20)
             .ToListAsync();
 
-        return Results.Ok(posts);
+        // Fetch like counts for all posts
+        var httpClient = httpClientFactory.CreateClient("LikesApi");
+
+        // Forward the Authorization header
+        var token = context.Request.Headers["Authorization"].ToString();
+        if (!string.IsNullOrEmpty(token))
+        {
+            httpClient.DefaultRequestHeaders.Add("Authorization", token);
+        }
+
+        var postsWithLikes = new List<object>();
+
+        foreach (var post in posts)
+        {
+            try
+            {
+                var response = await httpClient.GetAsync($"/api/posts/{post.Id}/likes");
+                var likesCount = 0;
+                if (response.IsSuccessStatusCode)
+                {
+                    var likesData = await response.Content.ReadFromJsonAsync<LikesResponse>();
+                    likesCount = likesData?.LikesCount ?? 0;
+                }
+
+                postsWithLikes.Add(new
+                {
+                    post.Id,
+                    post.UserId,
+                    post.Caption,
+                    post.MediaUrl,
+                    post.Hashtags,
+                    post.CreatedAt,
+                    LikesCount = likesCount,
+                    post.CommentsCount
+                });
+            }
+            catch
+            {
+                postsWithLikes.Add(new
+                {
+                    post.Id,
+                    post.UserId,
+                    post.Caption,
+                    post.MediaUrl,
+                    post.Hashtags,
+                    post.CreatedAt,
+                    LikesCount = 0,
+                    post.CommentsCount
+                });
+            }
+        }
+
+        return Results.Ok(postsWithLikes);
     }).RequireAuthorization();
 
     Log.Information("Posts API starting on port 80");
@@ -177,8 +322,9 @@ public class Post
     public string MediaUrl { get; set; } = string.Empty;
     public string[] Hashtags { get; set; } = Array.Empty<string>();
     public DateTime CreatedAt { get; set; }
-    public int LikesCount { get; set; }
     public int CommentsCount { get; set; }
 }
 
 public record CreatePostRequest(string? Caption, string? MediaUrl, string[]? Hashtags);
+
+public record LikesResponse(Guid PostId, int LikesCount);
