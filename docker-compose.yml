@@ -91,6 +91,57 @@ services:
       timeout: 5s
       retries: 5
 
+  clubs-db:
+    image: postgres:15-alpine
+    container_name: replink-clubs-db
+    environment:
+      POSTGRES_DB: ${CLUBS_DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - clubs-db-data:/var/lib/postgresql/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  exercises-db:
+    image: postgres:15-alpine
+    container_name: replink-exercises-db
+    environment:
+      POSTGRES_DB: ${EXERCISES_DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - exercises-db-data:/var/lib/postgresql/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  workouts-db:
+    image: postgres:15-alpine
+    container_name: replink-workouts-db
+    environment:
+      POSTGRES_DB: ${WORKOUTS_DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - workouts-db-data:/var/lib/postgresql/data
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   neo4j:
     image: neo4j:5.15
     container_name: replink-neo4j
@@ -278,6 +329,83 @@ services:
     networks:
       - replink-network
 
+  clubs-api:
+    build:
+      context: ./services/clubs-api
+      dockerfile: Dockerfile
+    container_name: replink-clubs-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=${CLUBS_CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      clubs-db:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  exercises-api:
+    build:
+      context: ./services/exercises-api
+      dockerfile: Dockerfile
+    container_name: replink-exercises-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=${EXERCISES_CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      exercises-db:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  workouts-api:
+    build:
+      context: ./services/workouts-api
+      dockerfile: Dockerfile
+    container_name: replink-workouts-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=${WORKOUTS_CONNECTION_STRING}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      workouts-db:
+        condition: service_healthy
+    networks:
+      - replink-network
+
+  analytics-api:
+    build:
+      context: ./services/analytics-api
+      dockerfile: Dockerfile
+    container_name: replink-analytics-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - Redis__ConnectionString=${REDIS_HOST}:${REDIS_PORT}
+      - Services__PostsApi=http://posts-api:80
+      - Services__LikesApi=http://likes-api:80
+      - Services__CommentsApi=http://comments-api:80
+      - Services__SocialGraphApi=http://socialgraph-api:80
+      - Services__WorkoutsApi=http://workouts-api:80
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - replink-network
+
   # API Gateway
   gateway:
     build:
@@ -299,6 +427,10 @@ services:
       - likes-api
       - socialgraph-api
       - feed-api
+      - clubs-api
+      - exercises-api
+      - workouts-api
+      - analytics-api
     networks:
       - replink-network
 
@@ -323,6 +455,9 @@ volumes:
   posts-db-data:
   comments-db-data:
   likes-db-data:
+  clubs-db-data:
+  exercises-db-data:
+  workouts-db-data:
   neo4j-data:
   neo4j-logs:
   rabbitmq-data:

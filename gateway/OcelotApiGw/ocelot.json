@@ -18,7 +18,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "users-api",
-          "Port": 8080
+          "Port": 80
         }
       ],
       "UpstreamPathTemplate": "/api/users/{everything}",
@@ -45,7 +45,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "likes-api",
-          "Port": 8080
+          "Port": 80
         }
       ],
       "UpstreamPathTemplate": "/api/likes/health",
@@ -57,7 +57,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "posts-api",
-          "Port": 8080
+          "Port": 80
         }
       ],
       "UpstreamPathTemplate": "/api/posts/health",
@@ -69,7 +69,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "likes-api",
-          "Port": 8080
+          "Port": 80
         }
       ],
       "UpstreamPathTemplate": "/api/posts/{postId}/likes/me",
@@ -84,7 +84,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "likes-api",
-          "Port": 8080
+          "Port": 80
         }
       ],
       "UpstreamPathTemplate": "/api/posts/{postId}/likes",
@@ -114,7 +114,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "posts-api",
-          "Port": 8080
+          "Port": 80
         }
       ],
       "UpstreamPathTemplate": "/api/posts/{everything}",
@@ -147,7 +147,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "socialgraph-api",
-          "Port": 8080
+          "Port": 80
         }
       ],
       "UpstreamPathTemplate": "/api/graph/{everything}",
@@ -162,10 +162,70 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "feed-api",
-          "Port": 8080
+          "Port": 80
         }
       ],
       "UpstreamPathTemplate": "/api/feed/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/clubs/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "clubs-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/clubs/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/exercises/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "exercises-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/exercises/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/workouts/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "workouts-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/workouts/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/analytics/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "analytics-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/analytics/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"

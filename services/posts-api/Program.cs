@@ -24,7 +24,7 @@ try
     // Add HttpClient for calling Likes API
     builder.Services.AddHttpClient("LikesApi", client =>
     {
-        client.BaseAddress = new Uri("http://likes-api:8080");
+        client.BaseAddress = new Uri("http://likes-api:80");
     });
 
     // JWT Configuration
@@ -91,6 +91,7 @@ try
             Caption = request.Caption ?? string.Empty,
             MediaUrl = request.MediaUrl ?? string.Empty,
             Hashtags = request.Hashtags ?? Array.Empty<string>(),
+            ExerciseIds = request.ExerciseIds ?? Array.Empty<Guid>(),
             CreatedAt = DateTime.UtcNow,
             CommentsCount = 0
         };
@@ -144,6 +145,7 @@ try
                     post.Caption,
                     post.MediaUrl,
                     post.Hashtags,
+                    post.ExerciseIds,
                     post.CreatedAt,
                     LikesCount = likesCount,
                     post.CommentsCount
@@ -209,6 +211,7 @@ try
             post.Caption,
             post.MediaUrl,
             post.Hashtags,
+            post.ExerciseIds,
             post.CreatedAt,
             LikesCount = likesCount,
             post.CommentsCount
@@ -258,6 +261,7 @@ try
                     post.Caption,
                     post.MediaUrl,
                     post.Hashtags,
+                    post.ExerciseIds,
                     post.CreatedAt,
                     LikesCount = likesCount,
                     post.CommentsCount
@@ -321,10 +325,11 @@ public class Post
     public string Caption { get; set; } = string.Empty;
     public string MediaUrl { get; set; } = string.Empty;
     public string[] Hashtags { get; set; } = Array.Empty<string>();
+    public Guid[] ExerciseIds { get; set; } = Array.Empty<Guid>();
     public DateTime CreatedAt { get; set; }
     public int CommentsCount { get; set; }
 }
 
-public record CreatePostRequest(string? Caption, string? MediaUrl, string[]? Hashtags);
+public record CreatePostRequest(string? Caption, string? MediaUrl, string[]? Hashtags, Guid[]? ExerciseIds);
 
 public record LikesResponse(Guid PostId, int LikesCount);

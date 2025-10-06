@@ -199,6 +199,137 @@ try
         return Results.Ok(new { userIds = feedSources });
     }).RequireAuthorization();
 
+    // User trains at Club
+    app.MapPost("/api/graph/trains-at/{clubId:guid}", async (Guid clubId, HttpContext context, IDriver driver) =>
+    {
+        var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        await using var session = driver.AsyncSession();
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var query = @"
+                MERGE (u:User {id: $userId})
+                MERGE (c:Club {id: $clubId})
+                MERGE (u)-[:TRAINS_AT]->(c)
+            ";
+            await tx.RunAsync(query, new { userId, clubId = clubId.ToString() });
+        });
+
+        Log.Information("User {UserId} now trains at club {ClubId}", userId, clubId);
+
+        return Results.Ok(new { message = "Training relationship created" });
+    }).RequireAuthorization();
+
+    // User stops training at Club
+    app.MapDelete("/api/graph/trains-at/{clubId:guid}", async (Guid clubId, HttpContext context, IDriver driver) =>
+    {
+        var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        await using var session = driver.AsyncSession();
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var query = @"
+                MATCH (u:User {id: $userId})-[r:TRAINS_AT]->(c:Club {id: $clubId})
+                DELETE r
+            ";
+            await tx.RunAsync(query, new { userId, clubId = clubId.ToString() });
+        });
+
+        Log.Information("User {UserId} stopped training at club {ClubId}", userId, clubId);
+
+        return Results.Ok(new { message = "Training relationship removed" });
+    }).RequireAuthorization();
+
+    // Get clubs where user trains
+    app.MapGet("/api/graph/user/{userId:guid}/clubs", async (Guid userId, IDriver driver) =>
+    {
+        await using var session = driver.AsyncSession();
+        var clubs = await session.ExecuteReadAsync(async tx =>
+        {
+            var query = @"
+                MATCH (u:User {id: $userId})-[:TRAINS_AT]->(c:Club)
+                RETURN c.id AS id
+            ";
+            var cursor = await tx.RunAsync(query, new { userId = userId.ToString() });
+            var records = await cursor.ToListAsync();
+            return records.Select(r => r["id"].As<string>()).ToList();
+        });
+
+        return Results.Ok(new { userId, clubs });
+    }).RequireAuthorization();
+
+    // Create workout performance relationship
+    app.MapPost("/api/graph/performs/{workoutId:guid}", async (Guid workoutId, HttpContext context, IDriver driver) =>
+    {
+        var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        await using var session = driver.AsyncSession();
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var query = @"
+                MERGE (u:User {id: $userId})
+                MERGE (w:Workout {id: $workoutId})
+                MERGE (u)-[:PERFORMS]->(w)
+            ";
+            await tx.RunAsync(query, new { userId, workoutId = workoutId.ToString() });
+        });
+
+        Log.Information("User {UserId} performs workout {WorkoutId}", userId, workoutId);
+
+        return Results.Ok(new { message = "Workout performance relationship created" });
+    }).RequireAuthorization();
+
+    // Link workout to exercises
+    app.MapPost("/api/graph/workout/{workoutId:guid}/exercises", async (Guid workoutId, LinkExercisesRequest request, IDriver driver) =>
+    {
+        await using var session = driver.AsyncSession();
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            var query = @"
+                MERGE (w:Workout {id: $workoutId})
+                WITH w
+                UNWIND $exerciseIds AS exerciseId
+                MERGE (e:Exercise {id: exerciseId})
+                MERGE (w)-[:CONTAINS]->(e)
+            ";
+            await tx.RunAsync(query, new { workoutId = workoutId.ToString(), exerciseIds = request.ExerciseIds.Select(e => e.ToString()).ToList() });
+        });
+
+        Log.Information("Workout {WorkoutId} linked to {Count} exercises", workoutId, request.ExerciseIds.Length);
+
+        return Results.Ok(new { message = "Exercises linked to workout" });
+    }).RequireAuthorization();
+
+    // Get exercises in a workout
+    app.MapGet("/api/graph/workout/{workoutId:guid}/exercises", async (Guid workoutId, IDriver driver) =>
+    {
+        await using var session = driver.AsyncSession();
+        var exercises = await session.ExecuteReadAsync(async tx =>
+        {
+            var query = @"
+                MATCH (w:Workout {id: $workoutId})-[:CONTAINS]->(e:Exercise)
+                RETURN e.id AS id
+            ";
+            var cursor = await tx.RunAsync(query, new { workoutId = workoutId.ToString() });
+            var records = await cursor.ToListAsync();
+            return records.Select(r => r["id"].As<string>()).ToList();
+        });
+
+        return Results.Ok(new { workoutId, exercises });
+    }).RequireAuthorization();
+
     Log.Information("SocialGraph API starting on port 80");
 
     app.Run();
@@ -211,3 +342,5 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+public record LinkExercisesRequest(Guid[] ExerciseIds);
