@@ -6,142 +6,6 @@ networks:
 
 services:
   # Databases
-  auth-db:
-    image: postgres:15-alpine
-    container_name: replink-auth-db
-    environment:
-      POSTGRES_DB: ${AUTH_DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - auth-db-data:/var/lib/postgresql/data
-    networks:
-      - replink-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  users-db:
-    image: postgres:15-alpine
-    container_name: replink-users-db
-    environment:
-      POSTGRES_DB: ${USERS_DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - users-db-data:/var/lib/postgresql/data
-    networks:
-      - replink-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  posts-db:
-    image: postgres:15-alpine
-    container_name: replink-posts-db
-    environment:
-      POSTGRES_DB: ${POSTS_DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - posts-db-data:/var/lib/postgresql/data
-    networks:
-      - replink-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  comments-db:
-    image: postgres:15-alpine
-    container_name: replink-comments-db
-    environment:
-      POSTGRES_DB: ${COMMENTS_DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - comments-db-data:/var/lib/postgresql/data
-    networks:
-      - replink-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  likes-db:
-    image: postgres:15-alpine
-    container_name: replink-likes-db
-    environment:
-      POSTGRES_DB: ${LIKES_DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - likes-db-data:/var/lib/postgresql/data
-    networks:
-      - replink-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  clubs-db:
-    image: postgres:15-alpine
-    container_name: replink-clubs-db
-    environment:
-      POSTGRES_DB: ${CLUBS_DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - clubs-db-data:/var/lib/postgresql/data
-    networks:
-      - replink-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  exercises-db:
-    image: postgres:15-alpine
-    container_name: replink-exercises-db
-    environment:
-      POSTGRES_DB: ${EXERCISES_DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - exercises-db-data:/var/lib/postgresql/data
-    networks:
-      - replink-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  workouts-db:
-    image: postgres:15-alpine
-    container_name: replink-workouts-db
-    environment:
-      POSTGRES_DB: ${WORKOUTS_DB_NAME}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - workouts-db-data:/var/lib/postgresql/data
-    networks:
-      - replink-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   neo4j:
     image: neo4j:5.15
     container_name: replink-neo4j
@@ -209,12 +73,14 @@ services:
     container_name: replink-auth-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${AUTH_CONNECTION_STRING}
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      auth-db:
+      neo4j:
         condition: service_healthy
     networks:
       - replink-network
@@ -226,12 +92,14 @@ services:
     container_name: replink-users-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${USERS_CONNECTION_STRING}
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      users-db:
+      neo4j:
         condition: service_healthy
     networks:
       - replink-network
@@ -243,13 +111,15 @@ services:
     container_name: replink-posts-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${POSTS_CONNECTION_STRING}
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
       - RabbitMQ__Host=${RABBITMQ_HOST}
     depends_on:
-      posts-db:
+      neo4j:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -264,12 +134,14 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
-      - ConnectionStrings__DefaultConnection=${COMMENTS_CONNECTION_STRING}
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      comments-db:
+      neo4j:
         condition: service_healthy
     networks:
       - replink-network
@@ -281,12 +153,14 @@ services:
     container_name: replink-likes-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${LIKES_CONNECTION_STRING}
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      likes-db:
+      neo4j:
         condition: service_healthy
     networks:
       - replink-network
@@ -337,12 +211,14 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
-      - ConnectionStrings__DefaultConnection=${CLUBS_CONNECTION_STRING}
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      clubs-db:
+      neo4j:
         condition: service_healthy
     networks:
       - replink-network
@@ -355,12 +231,14 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
-      - ConnectionStrings__DefaultConnection=${EXERCISES_CONNECTION_STRING}
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      exercises-db:
+      neo4j:
         condition: service_healthy
     networks:
       - replink-network
@@ -373,12 +251,14 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
-      - ConnectionStrings__DefaultConnection=${WORKOUTS_CONNECTION_STRING}
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      workouts-db:
+      neo4j:
         condition: service_healthy
     networks:
       - replink-network
@@ -450,14 +330,6 @@ services:
       - replink-network
 
 volumes:
-  auth-db-data:
-  users-db-data:
-  posts-db-data:
-  comments-db-data:
-  likes-db-data:
-  clubs-db-data:
-  exercises-db-data:
-  workouts-db-data:
   neo4j-data:
   neo4j-logs:
   rabbitmq-data:

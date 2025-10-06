@@ -1,9 +1,9 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
 using System.Security.Claims;
+using Neo4j.Driver;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -16,10 +16,12 @@ try
 
     builder.Host.UseSerilog();
 
-    // Add DbContext
-    var connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
-    builder.Services.AddDbContext<UsersDbContext>(options =>
-        options.UseNpgsql(connectionString));
+    // Neo4j Configuration (reuse existing connection from social-graph)
+    var neo4jUri = builder.Configuration["Neo4j:Uri"] ?? "bolt://neo4j:7687";
+    var neo4jUser = builder.Configuration["Neo4j:User"] ?? "neo4j";
+    var neo4jPassword = builder.Configuration["Neo4j:Password"] ?? "replinkneo4j";
+
+    builder.Services.AddSingleton(GraphDatabase.Driver(neo4jUri, AuthTokens.Basic(neo4jUser, neo4jPassword)));
 
     // JWT Configuration
     var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "your-super-secret-jwt-key-change-this-in-production";
@@ -50,11 +52,27 @@ try
 
     app.UseSerilogRequestLogging();
 
-    // Auto-create database
+    // Create Neo4j constraints on startup
     using (var scope = app.Services.CreateScope())
     {
-        var db = scope.ServiceProvider.GetRequiredService<UsersDbContext>();
-        db.Database.EnsureCreated();
+        var driver = scope.ServiceProvider.GetRequiredService<IDriver>();
+        await using var session = driver.AsyncSession();
+        try
+        {
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                // Create unique constraint on UserProfile.userId
+                await tx.RunAsync("CREATE CONSTRAINT userprofile_userid_unique IF NOT EXISTS FOR (up:UserProfile) REQUIRE up.userId IS UNIQUE");
+
+                // Create index on UserProfile.displayName for faster searches
+                await tx.RunAsync("CREATE INDEX userprofile_displayname_index IF NOT EXISTS FOR (up:UserProfile) ON (up.displayName)");
+            });
+            Log.Information("Neo4j constraints and indexes created for UserProfiles");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to create Neo4j constraints (may already exist)");
+        }
     }
 
     if (app.Environment.IsDevelopment())
@@ -67,10 +85,10 @@ try
     app.UseAuthorization();
 
     // Health endpoint
-    app.MapGet("/api/users/health", () => Results.Ok(new { status = "Healthy", service = "Users API" }));
+    app.MapGet("/api/users/health", () => Results.Ok(new { status = "Healthy", service = "Users API (Neo4j)" }));
 
     // Get current user profile
-    app.MapGet("/api/users/profile", async (HttpContext context, UsersDbContext db) =>
+    app.MapGet("/api/users/profile", async (HttpContext context, IDriver driver) =>
     {
         var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
@@ -78,7 +96,36 @@ try
             return Results.Unauthorized();
         }
 
-        var profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.UserId == Guid.Parse(userId));
+        await using var session = driver.AsyncSession();
+        var profile = await session.ExecuteReadAsync(async tx =>
+        {
+            var query = @"
+                MATCH (up:UserProfile {userId: $userId})
+                RETURN up.id AS id,
+                       up.userId AS userId,
+                       up.displayName AS displayName,
+                       up.bio AS bio,
+                       up.avatarUrl AS avatarUrl,
+                       up.createdAt AS createdAt
+            ";
+
+            var cursor = await tx.RunAsync(query, new { userId });
+            var records = await cursor.ToListAsync();
+
+            if (records.Count == 0)
+                return null;
+
+            var record = records[0];
+            return new UserProfile
+            {
+                Id = record["id"].As<string>(),
+                UserId = record["userId"].As<string>(),
+                DisplayName = record["displayName"].As<string>(),
+                Bio = record["bio"].As<string>(),
+                AvatarUrl = record["avatarUrl"].As<string>(),
+                CreatedAt = record["createdAt"].As<DateTime>()
+            };
+        });
 
         if (profile == null)
         {
@@ -89,7 +136,7 @@ try
     }).RequireAuthorization();
 
     // Create/Update user profile
-    app.MapPost("/api/users/profile", async (HttpContext context, UserProfileRequest request, UsersDbContext db) =>
+    app.MapPost("/api/users/profile", async (HttpContext context, UserProfileRequest request, IDriver driver) =>
     {
         var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
@@ -97,55 +144,100 @@ try
             return Results.Unauthorized();
         }
 
-        var userGuid = Guid.Parse(userId);
-        var profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.UserId == userGuid);
-
-        if (profile == null)
+        await using var session = driver.AsyncSession();
+        var profile = await session.ExecuteWriteAsync(async tx =>
         {
-            // Create new profile
-            profile = new UserProfile
+            // Use MERGE to create or update profile
+            var query = @"
+                MERGE (up:UserProfile {userId: $userId})
+                ON CREATE SET
+                    up.id = $id,
+                    up.displayName = $displayName,
+                    up.bio = $bio,
+                    up.avatarUrl = $avatarUrl,
+                    up.createdAt = datetime($createdAt)
+                ON MATCH SET
+                    up.displayName = $displayName,
+                    up.bio = COALESCE($bio, up.bio),
+                    up.avatarUrl = COALESCE($avatarUrl, up.avatarUrl)
+                RETURN up.id AS id,
+                       up.userId AS userId,
+                       up.displayName AS displayName,
+                       up.bio AS bio,
+                       up.avatarUrl AS avatarUrl,
+                       up.createdAt AS createdAt
+            ";
+
+            var cursor = await tx.RunAsync(query, new
             {
-                Id = Guid.NewGuid(),
-                UserId = userGuid,
-                DisplayName = request.DisplayName,
-                Bio = request.Bio ?? string.Empty,
-                AvatarUrl = request.AvatarUrl ?? string.Empty,
-                CreatedAt = DateTime.UtcNow
-            };
-            db.UserProfiles.Add(profile);
-            Log.Information("Created profile for user {UserId}", userId);
-        }
-        else
-        {
-            // Update existing profile
-            profile.DisplayName = request.DisplayName;
-            profile.Bio = request.Bio ?? profile.Bio;
-            profile.AvatarUrl = request.AvatarUrl ?? profile.AvatarUrl;
-            Log.Information("Updated profile for user {UserId}", userId);
-        }
+                id = Guid.NewGuid().ToString(),
+                userId,
+                displayName = request.DisplayName,
+                bio = request.Bio ?? string.Empty,
+                avatarUrl = request.AvatarUrl ?? string.Empty,
+                createdAt = DateTime.UtcNow.ToString("o")
+            });
 
-        await db.SaveChangesAsync();
+            var record = await cursor.SingleAsync();
+
+            return new UserProfile
+            {
+                Id = record["id"].As<string>(),
+                UserId = record["userId"].As<string>(),
+                DisplayName = record["displayName"].As<string>(),
+                Bio = record["bio"].As<string>(),
+                AvatarUrl = record["avatarUrl"].As<string>(),
+                CreatedAt = record["createdAt"].As<DateTime>()
+            };
+        });
+
+        Log.Information("Created/Updated profile for user {UserId}", userId);
 
         return Results.Ok(profile);
     }).RequireAuthorization();
 
     // Search users
-    app.MapGet("/api/users/search", async (string q, UsersDbContext db) =>
+    app.MapGet("/api/users/search", async (string q, IDriver driver) =>
     {
         if (string.IsNullOrWhiteSpace(q))
         {
             return Results.BadRequest(new { error = "Query parameter 'q' is required" });
         }
 
-        var profiles = await db.UserProfiles
-            .Where(p => p.DisplayName.ToLower().Contains(q.ToLower()))
-            .Take(20)
-            .ToListAsync();
+        await using var session = driver.AsyncSession();
+        var profiles = await session.ExecuteReadAsync(async tx =>
+        {
+            var query = @"
+                MATCH (up:UserProfile)
+                WHERE toLower(up.displayName) CONTAINS toLower($query)
+                RETURN up.id AS id,
+                       up.userId AS userId,
+                       up.displayName AS displayName,
+                       up.bio AS bio,
+                       up.avatarUrl AS avatarUrl,
+                       up.createdAt AS createdAt
+                ORDER BY up.displayName
+                LIMIT 20
+            ";
+
+            var cursor = await tx.RunAsync(query, new { query = q });
+            var records = await cursor.ToListAsync();
+
+            return records.Select(record => new UserProfile
+            {
+                Id = record["id"].As<string>(),
+                UserId = record["userId"].As<string>(),
+                DisplayName = record["displayName"].As<string>(),
+                Bio = record["bio"].As<string>(),
+                AvatarUrl = record["avatarUrl"].As<string>(),
+                CreatedAt = record["createdAt"].As<DateTime>()
+            }).ToList();
+        });
 
         return Results.Ok(profiles);
     }).RequireAuthorization();
 
-    Log.Information("Users API starting on port 80");
+    Log.Information("Users API (Neo4j) starting on port 80");
 
     app.Run();
 }
@@ -158,29 +250,11 @@ finally
     Log.CloseAndFlush();
 }
 
-// Database Context
-public class UsersDbContext : DbContext
-{
-    public UsersDbContext(DbContextOptions<UsersDbContext> options) : base(options) { }
-
-    public DbSet<UserProfile> UserProfiles { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<UserProfile>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.UserId).IsUnique();
-            entity.HasIndex(e => e.DisplayName);
-        });
-    }
-}
-
 // Models
 public class UserProfile
 {
-    public Guid Id { get; set; }
-    public Guid UserId { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string Bio { get; set; } = string.Empty;
     public string AvatarUrl { get; set; } = string.Empty;

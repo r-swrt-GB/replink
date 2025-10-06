@@ -1,9 +1,9 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
 using System.Security.Claims;
+using Neo4j.Driver;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -16,19 +16,12 @@ try
 
     builder.Host.UseSerilog();
 
-    // Add DbContext
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    
-    if (string.IsNullOrEmpty(connectionString))
-    {
-        Log.Fatal("Database connection string is missing or empty");
-        throw new InvalidOperationException("Database connection string 'DefaultConnection' is required");
-    }
-    
-    Log.Information("Using connection string: {ConnectionString}", connectionString.Replace("Password=", "Password=***"));
-    
-    builder.Services.AddDbContext<LikesDbContext>(options =>
-        options.UseNpgsql(connectionString));
+    // Neo4j Configuration (reuse existing connection from social-graph)
+    var neo4jUri = builder.Configuration["Neo4j:Uri"] ?? "bolt://neo4j:7687";
+    var neo4jUser = builder.Configuration["Neo4j:User"] ?? "neo4j";
+    var neo4jPassword = builder.Configuration["Neo4j:Password"] ?? "replinkneo4j";
+
+    builder.Services.AddSingleton(GraphDatabase.Driver(neo4jUri, AuthTokens.Basic(neo4jUser, neo4jPassword)));
 
     // JWT Configuration
     var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "your-super-secret-jwt-key-change-this-in-production";
@@ -59,11 +52,30 @@ try
 
     app.UseSerilogRequestLogging();
 
-    // Auto-create database
+    // Create Neo4j constraints on startup
     using (var scope = app.Services.CreateScope())
     {
-        var db = scope.ServiceProvider.GetRequiredService<LikesDbContext>();
-        db.Database.EnsureCreated();
+        var driver = scope.ServiceProvider.GetRequiredService<IDriver>();
+        await using var session = driver.AsyncSession();
+        try
+        {
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                // Create unique constraint on Like combination of postId and userId
+                await tx.RunAsync("CREATE CONSTRAINT like_post_user_unique IF NOT EXISTS FOR (l:Like) REQUIRE (l.postId, l.userId) IS UNIQUE");
+
+                // Create index on Like.postId for faster queries
+                await tx.RunAsync("CREATE INDEX like_postid_index IF NOT EXISTS FOR (l:Like) ON (l.postId)");
+
+                // Create index on Like.userId
+                await tx.RunAsync("CREATE INDEX like_userid_index IF NOT EXISTS FOR (l:Like) ON (l.userId)");
+            });
+            Log.Information("Neo4j constraints and indexes created for Likes");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to create Neo4j constraints (may already exist)");
+        }
     }
 
     if (app.Environment.IsDevelopment())
@@ -76,10 +88,10 @@ try
     app.UseAuthorization();
 
     // Health endpoint
-    app.MapGet("/api/health", () => Results.Ok(new { status = "Healthy", service = "Likes API" }));
+    app.MapGet("/api/health", () => Results.Ok(new { status = "Healthy", service = "Likes API (Neo4j)" }));
 
     // Like a post
-    app.MapPost("/api/posts/{postId:guid}/likes", async (Guid postId, HttpContext context, LikesDbContext db) =>
+    app.MapPost("/api/posts/{postId}/likes", async (string postId, HttpContext context, IDriver driver) =>
     {
         var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
@@ -87,25 +99,57 @@ try
             return Results.Unauthorized();
         }
 
-        var userGuid = Guid.Parse(userId);
+        await using var session = driver.AsyncSession();
 
         // Check if already liked
-        var existingLike = await db.Likes.FirstOrDefaultAsync(l => l.PostId == postId && l.UserId == userGuid);
-        if (existingLike != null)
+        var alreadyLiked = await session.ExecuteReadAsync(async tx =>
+        {
+            var query = "MATCH (l:Like {postId: $postId, userId: $userId}) RETURN l LIMIT 1";
+            var cursor = await tx.RunAsync(query, new { postId, userId });
+            return await cursor.FetchAsync();
+        });
+
+        if (alreadyLiked)
         {
             return Results.BadRequest(new { error = "Post already liked" });
         }
 
-        var like = new Like
+        var like = await session.ExecuteWriteAsync(async tx =>
         {
-            Id = Guid.NewGuid(),
-            PostId = postId,
-            UserId = userGuid,
-            CreatedAt = DateTime.UtcNow
-        };
+            var likeId = Guid.NewGuid().ToString();
+            var createdAt = DateTime.UtcNow;
 
-        db.Likes.Add(like);
-        await db.SaveChangesAsync();
+            var query = @"
+                CREATE (l:Like {
+                    id: $id,
+                    postId: $postId,
+                    userId: $userId,
+                    createdAt: datetime($createdAt)
+                })
+                RETURN l.id AS id,
+                       l.postId AS postId,
+                       l.userId AS userId,
+                       l.createdAt AS createdAt
+            ";
+
+            var cursor = await tx.RunAsync(query, new
+            {
+                id = likeId,
+                postId,
+                userId,
+                createdAt = createdAt.ToString("o")
+            });
+
+            var record = await cursor.SingleAsync();
+
+            return new Like
+            {
+                Id = record["id"].As<string>(),
+                PostId = record["postId"].As<string>(),
+                UserId = record["userId"].As<string>(),
+                CreatedAt = record["createdAt"].As<DateTime>()
+            };
+        });
 
         Log.Information("Post {PostId} liked by user {UserId}", postId, userId);
 
@@ -113,7 +157,7 @@ try
     }).RequireAuthorization();
 
     // Unlike a post
-    app.MapDelete("/api/posts/{postId:guid}/likes", async (Guid postId, HttpContext context, LikesDbContext db) =>
+    app.MapDelete("/api/posts/{postId}/likes", async (string postId, HttpContext context, IDriver driver) =>
     {
         var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
@@ -121,16 +165,24 @@ try
             return Results.Unauthorized();
         }
 
-        var userGuid = Guid.Parse(userId);
-        var like = await db.Likes.FirstOrDefaultAsync(l => l.PostId == postId && l.UserId == userGuid);
+        await using var session = driver.AsyncSession();
+        var deleted = await session.ExecuteWriteAsync(async tx =>
+        {
+            var query = @"
+                MATCH (l:Like {postId: $postId, userId: $userId})
+                DELETE l
+                RETURN count(l) AS deleted
+            ";
 
-        if (like == null)
+            var cursor = await tx.RunAsync(query, new { postId, userId });
+            var record = await cursor.SingleAsync();
+            return record["deleted"].As<int>() > 0;
+        });
+
+        if (!deleted)
         {
             return Results.NotFound(new { error = "Like not found" });
         }
-
-        db.Likes.Remove(like);
-        await db.SaveChangesAsync();
 
         Log.Information("Post {PostId} unliked by user {UserId}", postId, userId);
 
@@ -138,15 +190,22 @@ try
     }).RequireAuthorization();
 
     // Get like count for post
-    app.MapGet("/api/posts/{postId:guid}/likes", async (Guid postId, LikesDbContext db) =>
+    app.MapGet("/api/posts/{postId}/likes", async (string postId, IDriver driver) =>
     {
-        var count = await db.Likes.CountAsync(l => l.PostId == postId);
+        await using var session = driver.AsyncSession();
+        var count = await session.ExecuteReadAsync(async tx =>
+        {
+            var query = "MATCH (l:Like {postId: $postId}) RETURN count(l) AS count";
+            var cursor = await tx.RunAsync(query, new { postId });
+            var record = await cursor.SingleAsync();
+            return record["count"].As<int>();
+        });
 
         return Results.Ok(new { postId, likesCount = count });
     }).RequireAuthorization();
 
     // Check if user liked a post
-    app.MapGet("/api/posts/{postId:guid}/likes/me", async (Guid postId, HttpContext context, LikesDbContext db) =>
+    app.MapGet("/api/posts/{postId}/likes/me", async (string postId, HttpContext context, IDriver driver) =>
     {
         var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
@@ -154,13 +213,18 @@ try
             return Results.Unauthorized();
         }
 
-        var userGuid = Guid.Parse(userId);
-        var hasLiked = await db.Likes.AnyAsync(l => l.PostId == postId && l.UserId == userGuid);
+        await using var session = driver.AsyncSession();
+        var hasLiked = await session.ExecuteReadAsync(async tx =>
+        {
+            var query = "MATCH (l:Like {postId: $postId, userId: $userId}) RETURN l LIMIT 1";
+            var cursor = await tx.RunAsync(query, new { postId, userId });
+            return await cursor.FetchAsync();
+        });
 
         return Results.Ok(new { postId, hasLiked });
     }).RequireAuthorization();
 
-    Log.Information("Likes API starting on port 80");
+    Log.Information("Likes API (Neo4j) starting on port 80");
 
     app.Run();
 }
@@ -173,29 +237,11 @@ finally
     Log.CloseAndFlush();
 }
 
-// Database Context
-public class LikesDbContext : DbContext
-{
-    public LikesDbContext(DbContextOptions<LikesDbContext> options) : base(options) { }
-
-    public DbSet<Like> Likes { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<Like>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.PostId);
-            entity.HasIndex(e => new { e.PostId, e.UserId }).IsUnique();
-        });
-    }
-}
-
 // Models
 public class Like
 {
-    public Guid Id { get; set; }
-    public Guid PostId { get; set; }
-    public Guid UserId { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string PostId { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 }

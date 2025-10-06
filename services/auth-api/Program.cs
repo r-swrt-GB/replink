@@ -1,10 +1,10 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Neo4j.Driver;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -17,10 +17,12 @@ try
 
     builder.Host.UseSerilog();
 
-    // Add DbContext
-    var connectionString = builder.Configuration["ConnectionStrings:DefaultConnection"];
-    builder.Services.AddDbContext<IdentityDbContext>(options =>
-        options.UseNpgsql(connectionString));
+    // Neo4j Configuration (reuse existing connection from social-graph)
+    var neo4jUri = builder.Configuration["Neo4j:Uri"] ?? "bolt://neo4j:7687";
+    var neo4jUser = builder.Configuration["Neo4j:User"] ?? "neo4j";
+    var neo4jPassword = builder.Configuration["Neo4j:Password"] ?? "replinkneo4j";
+
+    builder.Services.AddSingleton(GraphDatabase.Driver(neo4jUri, AuthTokens.Basic(neo4jUser, neo4jPassword)));
 
     // JWT Configuration
     var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "your-super-secret-jwt-key-change-this-in-production";
@@ -51,11 +53,36 @@ try
 
     app.UseSerilogRequestLogging();
 
-    // Auto-create database
+    // Create Neo4j constraints on startup
     using (var scope = app.Services.CreateScope())
     {
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        db.Database.EnsureCreated();
+        var driver = scope.ServiceProvider.GetRequiredService<IDriver>();
+        await using var session = driver.AsyncSession();
+        try
+        {
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                // Create unique constraint on AuthUser.id
+                await tx.RunAsync("CREATE CONSTRAINT auth_user_id_unique IF NOT EXISTS FOR (u:AuthUser) REQUIRE u.id IS UNIQUE");
+
+                // Create unique constraint on AuthUser.email
+                await tx.RunAsync("CREATE CONSTRAINT auth_user_email_unique IF NOT EXISTS FOR (u:AuthUser) REQUIRE u.email IS UNIQUE");
+
+                // Create unique constraint on AuthUser.username
+                await tx.RunAsync("CREATE CONSTRAINT auth_user_username_unique IF NOT EXISTS FOR (u:AuthUser) REQUIRE u.username IS UNIQUE");
+
+                // Create index on AuthUser.email for faster lookups
+                await tx.RunAsync("CREATE INDEX auth_user_email_index IF NOT EXISTS FOR (u:AuthUser) ON (u.email)");
+
+                // Create index on AuthUser.username for faster lookups
+                await tx.RunAsync("CREATE INDEX auth_user_username_index IF NOT EXISTS FOR (u:AuthUser) ON (u.username)");
+            });
+            Log.Information("Neo4j constraints and indexes created for AuthUser");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to create Neo4j constraints (may already exist)");
+        }
     }
 
     if (app.Environment.IsDevelopment())
@@ -68,33 +95,92 @@ try
     app.UseAuthorization();
 
     // Health endpoint
-    app.MapGet("/api/auth/health", () => Results.Ok(new { status = "Healthy", service = "Auth API" }));
+    app.MapGet("/api/auth/health", () => Results.Ok(new { status = "Healthy", service = "Auth API (Neo4j)" }));
 
     // Register endpoint
-    app.MapPost("/api/auth/register", async (RegisterRequest request, IdentityDbContext db) =>
+    app.MapPost("/api/auth/register", async (RegisterRequest request, IDriver driver) =>
     {
-        if (await db.Users.AnyAsync(u => u.Email == request.Email))
+        await using var session = driver.AsyncSession();
+
+        // Check if email or username already exists
+        var existingUser = await session.ExecuteReadAsync(async tx =>
         {
-            return Results.BadRequest(new { error = "Email already registered" });
+            var query = @"
+                MATCH (u:AuthUser)
+                WHERE u.email = $email OR u.username = $username
+                RETURN u.email AS email, u.username AS username
+            ";
+
+            var cursor = await tx.RunAsync(query, new { email = request.Email, username = request.Username });
+            var records = await cursor.ToListAsync();
+
+            if (records.Count == 0)
+                return null;
+
+            var record = records[0];
+            return new
+            {
+                Email = record["email"].As<string>(),
+                Username = record["username"].As<string>()
+            };
+        });
+
+        if (existingUser != null)
+        {
+            if (existingUser.Email == request.Email)
+            {
+                return Results.BadRequest(new { error = "Email already registered" });
+            }
+            if (existingUser.Username == request.Username)
+            {
+                return Results.BadRequest(new { error = "Username already taken" });
+            }
         }
 
-        if (await db.Users.AnyAsync(u => u.Username == request.Username))
-        {
-            return Results.BadRequest(new { error = "Username already taken" });
-        }
+        // Create new user
+        var userId = Guid.NewGuid().ToString();
+        var createdAt = DateTime.UtcNow;
+        var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
-        var user = new User
+        var user = await session.ExecuteWriteAsync(async tx =>
         {
-            Id = Guid.NewGuid(),
-            Email = request.Email,
-            Username = request.Username,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            Role = request.Role ?? "athlete",
-            CreatedAt = DateTime.UtcNow
-        };
+            var query = @"
+                CREATE (u:AuthUser {
+                    id: $id,
+                    email: $email,
+                    username: $username,
+                    passwordHash: $passwordHash,
+                    role: $role,
+                    createdAt: datetime($createdAt)
+                })
+                RETURN u.id AS id,
+                       u.email AS email,
+                       u.username AS username,
+                       u.role AS role,
+                       u.createdAt AS createdAt
+            ";
 
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
+            var cursor = await tx.RunAsync(query, new
+            {
+                id = userId,
+                email = request.Email,
+                username = request.Username,
+                passwordHash = passwordHash,
+                role = request.Role ?? "athlete",
+                createdAt = createdAt.ToString("o")
+            });
+
+            var record = await cursor.SingleAsync();
+
+            return new User
+            {
+                Id = record["id"].As<string>(),
+                Email = record["email"].As<string>(),
+                Username = record["username"].As<string>(),
+                Role = record["role"].As<string>(),
+                CreatedAt = record["createdAt"].As<DateTime>()
+            };
+        });
 
         Log.Information("User registered: {Email}", request.Email);
 
@@ -102,9 +188,39 @@ try
     });
 
     // Login endpoint
-    app.MapPost("/api/auth/login", async (LoginRequest request, IdentityDbContext db) =>
+    app.MapPost("/api/auth/login", async (LoginRequest request, IDriver driver) =>
     {
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        await using var session = driver.AsyncSession();
+
+        var user = await session.ExecuteReadAsync(async tx =>
+        {
+            var query = @"
+                MATCH (u:AuthUser {email: $email})
+                RETURN u.id AS id,
+                       u.email AS email,
+                       u.username AS username,
+                       u.passwordHash AS passwordHash,
+                       u.role AS role,
+                       u.createdAt AS createdAt
+            ";
+
+            var cursor = await tx.RunAsync(query, new { email = request.Email });
+            var records = await cursor.ToListAsync();
+
+            if (records.Count == 0)
+                return null;
+
+            var record = records[0];
+            return new User
+            {
+                Id = record["id"].As<string>(),
+                Email = record["email"].As<string>(),
+                Username = record["username"].As<string>(),
+                PasswordHash = record["passwordHash"].As<string>(),
+                Role = record["role"].As<string>(),
+                CreatedAt = record["createdAt"].As<DateTime>()
+            };
+        });
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
@@ -125,7 +241,7 @@ try
         });
     });
 
-    Log.Information("Auth API starting on port 80");
+    Log.Information("Auth API (Neo4j) starting on port 80");
 
     app.Run();
 }
@@ -146,7 +262,7 @@ static string GenerateJwtToken(User user, string secret, string issuer, string a
     {
         Subject = new ClaimsIdentity(new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.Role, user.Role)
@@ -160,28 +276,10 @@ static string GenerateJwtToken(User user, string secret, string issuer, string a
     return tokenHandler.WriteToken(token);
 }
 
-// Database Context
-public class IdentityDbContext : DbContext
-{
-    public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
-
-    public DbSet<User> Users { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<User>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Email).IsUnique();
-            entity.HasIndex(e => e.Username).IsUnique();
-        });
-    }
-}
-
 // Models
 public class User
 {
-    public Guid Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
