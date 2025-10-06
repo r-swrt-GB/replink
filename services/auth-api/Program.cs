@@ -68,10 +68,10 @@ try
     app.UseAuthorization();
 
     // Health endpoint
-    app.MapGet("/api/identity/health", () => Results.Ok(new { status = "Healthy", service = "Identity API" }));
+    app.MapGet("/api/auth/health", () => Results.Ok(new { status = "Healthy", service = "Auth API" }));
 
     // Register endpoint
-    app.MapPost("/api/identity/register", async (RegisterRequest request, IdentityDbContext db) =>
+    app.MapPost("/api/auth/register", async (RegisterRequest request, IdentityDbContext db) =>
     {
         if (await db.Users.AnyAsync(u => u.Email == request.Email))
         {
@@ -102,7 +102,7 @@ try
     });
 
     // Login endpoint
-    app.MapPost("/api/identity/login", async (LoginRequest request, IdentityDbContext db) =>
+    app.MapPost("/api/auth/login", async (LoginRequest request, IdentityDbContext db) =>
     {
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
@@ -125,13 +125,13 @@ try
         });
     });
 
-    Log.Information("Identity API starting on port 80");
+    Log.Information("Auth API starting on port 80");
 
     app.Run();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Identity API failed to start");
+    Log.Fatal(ex, "Auth API failed to start");
 }
 finally
 {

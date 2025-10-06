@@ -6,15 +6,15 @@ networks:
 
 services:
   # Databases
-  identity-db:
+  auth-db:
     image: postgres:15-alpine
-    container_name: replink-identity-db
+    container_name: replink-auth-db
     environment:
-      POSTGRES_DB: ${IDENTITY_DB_NAME}
+      POSTGRES_DB: ${AUTH_DB_NAME}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - identity-db-data:/var/lib/postgresql/data
+      - auth-db-data:/var/lib/postgresql/data
     networks:
       - replink-network
     healthcheck:
@@ -130,19 +130,19 @@ services:
       retries: 5
 
   # Microservices
-  identity-api:
+  auth-api:
     build:
-      context: ./services/identity-api
+      context: ./services/auth-api
       dockerfile: Dockerfile
-    container_name: replink-identity-api
+    container_name: replink-auth-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${IDENTITY_CONNECTION_STRING}
+      - ConnectionStrings__DefaultConnection=${AUTH_CONNECTION_STRING}
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      identity-db:
+      auth-db:
         condition: service_healthy
     networks:
       - replink-network
@@ -253,7 +253,7 @@ services:
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      - identity-api
+      - auth-api
       - users-api
       - posts-api
       - commentslikes-api
@@ -278,7 +278,7 @@ services:
       - replink-network
 
 volumes:
-  identity-db-data:
+  auth-db-data:
   users-db-data:
   posts-db-data:
   commentslikes-db-data:

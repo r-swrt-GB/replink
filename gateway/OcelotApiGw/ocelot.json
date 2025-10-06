@@ -1,15 +1,15 @@
 {
   "Routes": [
     {
-      "DownstreamPathTemplate": "/api/identity/{everything}",
+      "DownstreamPathTemplate": "/api/auth/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "identity-api",
+          "Host": "auth-api",
           "Port": 80
         }
       ],
-      "UpstreamPathTemplate": "/api/identity/{everything}",
+      "UpstreamPathTemplate": "/api/auth/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
     },
     {

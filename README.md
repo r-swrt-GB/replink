@@ -8,7 +8,7 @@ RepLink is a microservices-based application with the following components:
 
 ### Microservices
 
-- **Identity API** - Authentication and JWT token issuance
+- **Auth API** - Authentication and JWT token issuance
 - **Users API** - User profile management and search
 - **Posts API** - Create and retrieve fitness posts with media
 - **CommentsLikes API** - Social interactions on posts
@@ -18,7 +18,7 @@ RepLink is a microservices-based application with the following components:
 
 ### Databases (Database per Service Pattern)
 
-- **PostgreSQL** - Identity, Users, Posts, CommentsLikes services
+- **PostgreSQL** - Auth, Users, Posts, CommentsLikes services
 - **Neo4j** - Social-Graph relationships
 - **Redis** - Feed caching (optional)
 - **RabbitMQ** - Event messaging (optional)
@@ -84,7 +84,7 @@ This single command will:
 
 Each service exposes Swagger UI:
 
-- **Identity API**: http://localhost:8000/api/identity/swagger
+- **Auth API**: http://localhost:8000/api/auth/swagger
 - **Users API**: http://localhost:8000/api/users/swagger
 - **Posts API**: http://localhost:8000/api/posts/swagger
 - **CommentsLikes API**: http://localhost:8000/api/commentslikes/swagger
@@ -97,7 +97,7 @@ The Ocelot API Gateway routes requests as follows:
 
 | Route                  | Downstream Service   | Authentication         |
 | ---------------------- | -------------------- | ---------------------- |
-| `/api/identity/*`      | identity-api:80      | No                     |
+| `/api/auth/*`          | auth-api:80          | No                     |
 | `/api/users/*`         | users-api:80         | Yes (JWT)              |
 | `/api/posts/*`         | posts-api:80         | Yes (JWT + Role claim) |
 | `/api/commentslikes/*` | commentslikes-api:80 | Yes (JWT)              |
@@ -119,7 +119,7 @@ Only port **8000** is exposed externally. All inter-service communication happen
 ```bash
 make logs                # All services
 make logs-gateway        # Gateway only
-make logs-identity       # Identity API only
+make logs-auth           # Auth API only
 make logs-graph          # Social-Graph API only
 ```
 
@@ -163,7 +163,7 @@ This applies Entity Framework migrations to all PostgreSQL databases.
 
 ### 1. Register a New User
 
-**POST** `http://localhost:8000/api/identity/register`
+**POST** `http://localhost:8000/api/auth/register`
 
 ```json
 {
@@ -176,7 +176,7 @@ This applies Entity Framework migrations to all PostgreSQL databases.
 
 ### 2. Login
 
-**POST** `http://localhost:8000/api/identity/login`
+**POST** `http://localhost:8000/api/auth/login`
 
 ```json
 {
@@ -328,7 +328,7 @@ replink/
 │       ├── ocelot.json        # Gateway routing configuration
 │       └── OcelotApiGw.csproj
 ├── services/
-│   ├── identity-api/          # Authentication service
+│   ├── auth-api/              # Authentication service
 │   ├── users-api/             # User profiles service
 │   ├── posts-api/             # Posts service
 │   ├── commentslikes-api/     # Social interactions service
@@ -346,7 +346,7 @@ replink/
 
 All services expose a `/health` endpoint for monitoring:
 
-- http://localhost:8000/api/identity/health
+- http://localhost:8000/api/auth/health
 - http://localhost:8000/api/users/health
 - http://localhost:8000/api/posts/health
 - http://localhost:8000/api/commentslikes/health

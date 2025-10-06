@@ -5,15 +5,15 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "services", "services", "{867430DD-3C0F-4831-A904-573E5E056505}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "identity-api", "identity-api", "{DF346DFF-A50D-4745-8CC6-5EEC8DE290DB}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "auth-api", "auth-api", "{DF346DFF-A50D-4745-8CC6-5EEC8DE290DB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityApi", "services\identity-api\IdentityApi\IdentityApi.csproj", "{B1B6F314-B935-44DF-9615-0A2FF6EF8FA7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthApi", "services\auth-api\AuthApi\AuthApi.csproj", "{B1B6F314-B935-44DF-9615-0A2FF6EF8FA7}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "gateway", "gateway", "{C8FF4DCE-BD73-4AC2-B885-F52B48667AD7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OcelotApiGw", "gateway\OcelotApiGw\OcelotApiGw.csproj", "{CB5D9207-D665-4D4F-A4CB-F6408B1E5F7E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityApi", "services\identity-api\IdentityApi.csproj", "{BC2621B9-F539-4FB3-86DE-580A59DFA735}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthApi", "services\auth-api\AuthApi.csproj", "{BC2621B9-F539-4FB3-86DE-580A59DFA735}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UsersApi", "services\users-api\UsersApi.csproj", "{F9269797-F7AA-491E-BBE4-1A20C6309324}"
 EndProject

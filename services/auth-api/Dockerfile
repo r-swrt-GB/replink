@@ -4,16 +4,16 @@ EXPOSE 80
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["OcelotApiGw.csproj", "./"]
-RUN dotnet restore "OcelotApiGw.csproj"
+COPY ["AuthApi.csproj", "./"]
+RUN dotnet restore "AuthApi.csproj"
 COPY . .
-RUN dotnet build "OcelotApiGw.csproj" -c Release -o /app/build
+RUN dotnet build "AuthApi.csproj" -c Release -o /app/build
 
 FROM build AS publish
-RUN dotnet publish "OcelotApiGw.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "AuthApi.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENV ASPNETCORE_URLS=http://+:80
-ENTRYPOINT ["dotnet", "OcelotApiGw.dll"]
+ENTRYPOINT ["dotnet", "AuthApi.dll"]

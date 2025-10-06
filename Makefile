@@ -37,8 +37,8 @@ logs: ## View logs from all services
 logs-gateway: ## View gateway logs
 	docker-compose logs -f gateway
 
-logs-identity: ## View identity-api logs
-	docker-compose logs -f identity-api
+logs-auth: ## View auth-api logs
+	docker-compose logs -f auth-api
 
 logs-users: ## View users-api logs
 	docker-compose logs -f users-api
@@ -63,7 +63,7 @@ clean: ## Remove all containers, volumes, and images
 
 migrate: ## Run database migrations for all services
 	@echo "Running migrations..."
-	docker-compose exec identity-api dotnet ef database update || true
+	docker-compose exec auth-api dotnet ef database update || true
 	docker-compose exec users-api dotnet ef database update || true
 	docker-compose exec posts-api dotnet ef database update || true
 	docker-compose exec commentslikes-api dotnet ef database update || true
