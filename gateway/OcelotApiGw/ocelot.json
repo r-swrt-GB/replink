@@ -18,31 +18,13 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "users-api",
-          "Port": 80
+          "Port": 8080
         }
       ],
       "UpstreamPathTemplate": "/api/users/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"
-      }
-    },
-    {
-      "DownstreamPathTemplate": "/api/posts/{everything}",
-      "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [
-        {
-          "Host": "posts-api",
-          "Port": 80
-        }
-      ],
-      "UpstreamPathTemplate": "/api/posts/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
-      "AuthenticationOptions": {
-        "AuthenticationProviderKey": "Bearer"
-      },
-      "RouteClaimsRequirement": {
-        "Role": "athlete,coach,influencer"
       }
     },
     {
@@ -58,21 +40,6 @@
       "UpstreamHttpMethod": [ "GET" ]
     },
     {
-      "DownstreamPathTemplate": "/api/comments/{everything}",
-      "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [
-        {
-          "Host": "comments-api",
-          "Port": 80
-        }
-      ],
-      "UpstreamPathTemplate": "/api/comments/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
-      "AuthenticationOptions": {
-        "AuthenticationProviderKey": "Bearer"
-      }
-    },
-    {
       "DownstreamPathTemplate": "/api/health",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
@@ -85,7 +52,19 @@
       "UpstreamHttpMethod": [ "GET" ]
     },
     {
-      "DownstreamPathTemplate": "/api/posts/{postId}/likes/{everything}",
+      "DownstreamPathTemplate": "/api/posts/health",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "posts-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/api/posts/health",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/posts/{postId}/likes/me",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
@@ -93,8 +72,8 @@
           "Port": 8080
         }
       ],
-      "UpstreamPathTemplate": "/api/posts/{postId}/likes/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "UpstreamPathTemplate": "/api/posts/{postId}/likes/me",
+      "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"
       }
@@ -130,12 +109,45 @@
       }
     },
     {
+      "DownstreamPathTemplate": "/api/posts/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "posts-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/api/posts/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      },
+      "RouteClaimsRequirement": {
+        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": "athlete,coach,influencer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/comments/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "comments-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/comments/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
       "DownstreamPathTemplate": "/api/graph/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
           "Host": "socialgraph-api",
-          "Port": 80
+          "Port": 8080
         }
       ],
       "UpstreamPathTemplate": "/api/graph/{everything}",
@@ -150,7 +162,7 @@
       "DownstreamHostAndPorts": [
         {
           "Host": "feed-api",
-          "Port": 80
+          "Port": 8080
         }
       ],
       "UpstreamPathTemplate": "/api/feed/{everything}",
