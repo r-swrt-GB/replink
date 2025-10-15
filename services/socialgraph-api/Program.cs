@@ -333,7 +333,7 @@ try
                 MERGE (e:Exercise {id: exerciseId})
                 MERGE (w)-[:CONTAINS]->(e)
             ";
-            await tx.RunAsync(query, new { workoutId = workoutId.ToString(), exerciseIds = request.ExerciseIds.Select(e => e.ToString()).ToList() });
+            await tx.RunAsync(query, new { workoutId = workoutId.ToString(), exerciseIds = request.ExerciseIds });
         });
 
         Log.Information("Workout {WorkoutId} linked to {Count} exercises", workoutId, request.ExerciseIds.Length);
@@ -372,4 +372,4 @@ finally
     Log.CloseAndFlush();
 }
 
-public record LinkExercisesRequest(Guid[] ExerciseIds);
+public record LinkExercisesRequest(string[] ExerciseIds);

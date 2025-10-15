@@ -161,9 +161,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Title = record["title"].As<string>(),
                 Description = record["description"].As<string>(),
-                ExerciseIds = record["exerciseIds"].As<List<string>>().ToArray(),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
                 DurationMinutes = record["durationMinutes"].As<int>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             }).ToList();
         });
 
@@ -200,9 +200,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Title = record["title"].As<string>(),
                 Description = record["description"].As<string>(),
-                ExerciseIds = record["exerciseIds"].As<List<string>>().ToArray(),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
                 DurationMinutes = record["durationMinutes"].As<int>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -247,9 +247,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Title = record["title"].As<string>(),
                 Description = record["description"].As<string>(),
-                ExerciseIds = record["exerciseIds"].As<List<string>>().ToArray(),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
                 DurationMinutes = record["durationMinutes"].As<int>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             }).ToList();
         });
 
@@ -309,9 +309,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Title = record["title"].As<string>(),
                 Description = record["description"].As<string>(),
-                ExerciseIds = record["exerciseIds"].As<List<string>>().ToArray(),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
                 DurationMinutes = record["durationMinutes"].As<int>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -396,9 +396,9 @@ try
                     UserId = getRecord["userId"].As<string>(),
                     Title = getRecord["title"].As<string>(),
                     Description = getRecord["description"].As<string>(),
-                    ExerciseIds = getRecord["exerciseIds"].As<List<string>>().ToArray(),
+                    ExerciseIds = ConvertToStringArray(getRecord["exerciseIds"]),
                     DurationMinutes = getRecord["durationMinutes"].As<int>(),
-                    CreatedAt = getRecord["createdAt"].As<DateTime>()
+                    CreatedAt = ConvertToDateTime(getRecord["createdAt"].As<object>())
                 };
             }
 
@@ -427,9 +427,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Title = record["title"].As<string>(),
                 Description = record["description"].As<string>(),
-                ExerciseIds = record["exerciseIds"].As<List<string>>().ToArray(),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
                 DurationMinutes = record["durationMinutes"].As<int>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -551,7 +551,7 @@ try
                 Category = record["category"].As<string>(),
                 MediaUrl = record["mediaUrl"].As<string>(),
                 MuscleGroup = record["muscleGroup"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             }).ToList();
         });
 
@@ -590,7 +590,7 @@ try
                 Category = record["category"].As<string>(),
                 MediaUrl = record["mediaUrl"].As<string>(),
                 MuscleGroup = record["muscleGroup"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -659,7 +659,7 @@ try
                 Category = record["category"].As<string>(),
                 MediaUrl = record["mediaUrl"].As<string>(),
                 MuscleGroup = record["muscleGroup"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -731,7 +731,7 @@ try
                     Category = getRecord["category"].As<string>(),
                     MediaUrl = getRecord["mediaUrl"].As<string>(),
                     MuscleGroup = getRecord["muscleGroup"].As<string>(),
-                    CreatedAt = getRecord["createdAt"].As<DateTime>()
+                    CreatedAt = ConvertToDateTime(getRecord["createdAt"].As<object>())
                 };
             }
 
@@ -762,7 +762,7 @@ try
                 Category = record["category"].As<string>(),
                 MediaUrl = record["mediaUrl"].As<string>(),
                 MuscleGroup = record["muscleGroup"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -843,7 +843,7 @@ try
                 Name = record["name"].As<string>(),
                 Description = record["description"].As<string>(),
                 Location = record["location"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             }).ToList();
         });
 
@@ -878,7 +878,7 @@ try
                 Name = record["name"].As<string>(),
                 Description = record["description"].As<string>(),
                 Location = record["location"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -939,7 +939,7 @@ try
                 Name = record["name"].As<string>(),
                 Description = record["description"].As<string>(),
                 Location = record["location"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -997,7 +997,7 @@ try
                     Name = getRecord["name"].As<string>(),
                     Description = getRecord["description"].As<string>(),
                     Location = getRecord["location"].As<string>(),
-                    CreatedAt = getRecord["createdAt"].As<DateTime>()
+                    CreatedAt = ConvertToDateTime(getRecord["createdAt"].As<object>())
                 };
             }
 
@@ -1024,7 +1024,7 @@ try
                 Name = record["name"].As<string>(),
                 Description = record["description"].As<string>(),
                 Location = record["location"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -1109,7 +1109,7 @@ try
                 Name = record["name"].As<string>(),
                 Description = record["description"].As<string>(),
                 Location = record["location"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             }).ToList();
         });
 
@@ -1127,6 +1127,58 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// Helper method to safely convert Neo4j temporal values to DateTime
+static DateTime ConvertToDateTime(object value)
+{
+    if (value == null)
+        return DateTime.MinValue;
+
+    // Handle Neo4j.Driver temporal types (ZonedDateTime, LocalDateTime)
+    var valueType = value.GetType();
+
+    // Check if it has ToDateTimeOffset() method (ZonedDateTime)
+    var toDateTimeOffsetMethod = valueType.GetMethod("ToDateTimeOffset");
+    if (toDateTimeOffsetMethod != null)
+    {
+        var dateTimeOffset = (DateTimeOffset)toDateTimeOffsetMethod.Invoke(value, null);
+        return dateTimeOffset.DateTime;
+    }
+
+    // Check if it has ToDateTimeUnspecified() method (LocalDateTime)
+    var toDateTimeUnspecifiedMethod = valueType.GetMethod("ToDateTimeUnspecified");
+    if (toDateTimeUnspecifiedMethod != null)
+    {
+        return (DateTime)toDateTimeUnspecifiedMethod.Invoke(value, null);
+    }
+
+    if (value is DateTime dateTime)
+        return dateTime;
+
+    // Fallback: try to parse as string
+    if (value is string str && DateTime.TryParse(str, out var parsed))
+        return parsed;
+
+    return DateTime.MinValue;
+}
+
+// Helper method to safely convert Neo4j values to string arrays
+static string[] ConvertToStringArray(object value)
+{
+    if (value == null)
+        return Array.Empty<string>();
+
+    if (value is IList<object> list)
+        return list.Select(item => item?.ToString() ?? string.Empty).ToArray();
+
+    if (value is string[] stringArray)
+        return stringArray;
+
+    if (value is IEnumerable<string> stringEnumerable)
+        return stringEnumerable.ToArray();
+
+    return Array.Empty<string>();
 }
 
 // ========== MODELS ==========

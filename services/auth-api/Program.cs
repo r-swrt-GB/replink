@@ -130,6 +130,7 @@ try
     app.MapPost("/api/auth/register", async (RegisterRequest request, IDriver driver) =>
     {
         await using var session = driver.AsyncSession();
+        await using var userSession = driver.AsyncSession();
 
         // Check if email or username already exists
         var existingUser = await session.ExecuteReadAsync(async tx =>
@@ -180,7 +181,7 @@ try
                     username: $username,
                     passwordHash: $passwordHash,
                     role: $role,
-                    createdAt: datetime($createdAt)
+                    createdAt: $createdAt
                 })
                 RETURN u.id AS id,
                        u.email AS email,
@@ -196,7 +197,7 @@ try
                 username = request.Username,
                 passwordHash = passwordHash,
                 role = request.Role ?? "athlete",
-                createdAt = createdAt.ToString("o")
+                createdAt = new DateTimeOffset(createdAt).ToUnixTimeSeconds()
             });
 
             var record = await cursor.SingleAsync();
@@ -207,11 +208,45 @@ try
                 Email = record["email"].As<string>(),
                 Username = record["username"].As<string>(),
                 Role = record["role"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = DateTimeOffset.FromUnixTimeSeconds(record["createdAt"].As<long>()).DateTime
             };
         });
 
         Log.Information("User registered: {Email}", request.Email);
+
+        // Create user profile in same Neo4j database
+        try
+        {
+            await userSession.ExecuteWriteAsync(async tx =>
+            {
+                var profileQuery = @"
+                    CREATE (p:UserProfile {
+                        id: $id,
+                        userId: $userId,
+                        displayName: $displayName,
+                        bio: $bio,
+                        avatarUrl: $avatarUrl,
+                        createdAt: $createdAt
+                    })
+                ";
+
+                await tx.RunAsync(profileQuery, new
+                {
+                    id = Guid.NewGuid().ToString(),
+                    userId = user.Id,
+                    displayName = request.Username,
+                    bio = "",
+                    avatarUrl = "",
+                    createdAt = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds()
+                });
+            });
+
+            Log.Information("User profile created for: {Email}", request.Email);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to create user profile for: {Email}", request.Email);
+        }
 
         return Results.Ok(new { message = "User registered successfully", userId = user.Id });
     });
@@ -247,7 +282,7 @@ try
                 Username = record["username"].As<string>(),
                 PasswordHash = record["passwordHash"].As<string>(),
                 Role = record["role"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = DateTimeOffset.FromUnixTimeSeconds(record["createdAt"].As<long>()).DateTime
             };
         });
 

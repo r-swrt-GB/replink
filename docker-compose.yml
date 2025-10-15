@@ -73,6 +73,7 @@ services:
     container_name: replink-content-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
       - Neo4j__Uri=${NEO4J_URI}
       - Neo4j__User=${NEO4J_USER}
       - Neo4j__Password=${NEO4J_PASSWORD}
@@ -98,6 +99,7 @@ services:
     container_name: replink-fitness-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
       - Neo4j__Uri=${NEO4J_URI}
       - Neo4j__User=${NEO4J_USER}
       - Neo4j__Password=${NEO4J_PASSWORD}
@@ -123,6 +125,7 @@ services:
     container_name: replink-auth-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
       - Neo4j__Uri=${NEO4J_URI}
       - Neo4j__User=${NEO4J_USER}
       - Neo4j__Password=${NEO4J_PASSWORD}
@@ -148,6 +151,7 @@ services:
     container_name: replink-users-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
       - Neo4j__Uri=${NEO4J_URI}
       - Neo4j__User=${NEO4J_USER}
       - Neo4j__Password=${NEO4J_PASSWORD}
@@ -173,6 +177,7 @@ services:
     container_name: replink-socialgraph-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
       - Neo4j__Uri=${NEO4J_URI}
       - Neo4j__User=${NEO4J_USER}
       - Neo4j__Password=${NEO4J_PASSWORD}
@@ -198,6 +203,7 @@ services:
     container_name: replink-feed-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
@@ -253,6 +259,7 @@ services:
       - "8000:80"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}

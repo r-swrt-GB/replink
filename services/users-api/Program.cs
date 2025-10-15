@@ -152,7 +152,7 @@ try
                 DisplayName = record["displayName"].As<string>(),
                 Bio = record["bio"].As<string>(),
                 AvatarUrl = record["avatarUrl"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = DateTimeOffset.FromUnixTimeSeconds(record["createdAt"].As<long>()).DateTime
             };
         });
 
@@ -164,8 +164,8 @@ try
         return Results.Ok(profile);
     }).RequireAuthorization();
 
-    // Create/Update user profile
-    app.MapPost("/api/users/profile", async (HttpContext context, UserProfileRequest request, IDriver driver) =>
+    // Update user profile only (profile is created during registration)
+    app.MapPut("/api/users/profile", async (HttpContext context, UserProfileRequest request, IDriver driver) =>
     {
         var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
@@ -176,19 +176,24 @@ try
         await using var session = driver.AsyncSession();
         var profile = await session.ExecuteWriteAsync(async tx =>
         {
-            // Use MERGE to create or update profile
+            // Check if profile exists
+            var checkQuery = @"
+                MATCH (up:UserProfile {userId: $userId})
+                RETURN up.id AS id
+            ";
+
+            var checkCursor = await tx.RunAsync(checkQuery, new { userId });
+            var checkRecords = await checkCursor.ToListAsync();
+
+            if (checkRecords.Count == 0)
+                return null;
+
+            // Update profile
             var query = @"
-                MERGE (up:UserProfile {userId: $userId})
-                ON CREATE SET
-                    up.id = $id,
-                    up.displayName = $displayName,
+                MATCH (up:UserProfile {userId: $userId})
+                SET up.displayName = $displayName,
                     up.bio = $bio,
-                    up.avatarUrl = $avatarUrl,
-                    up.createdAt = datetime($createdAt)
-                ON MATCH SET
-                    up.displayName = $displayName,
-                    up.bio = COALESCE($bio, up.bio),
-                    up.avatarUrl = COALESCE($avatarUrl, up.avatarUrl)
+                    up.avatarUrl = $avatarUrl
                 RETURN up.id AS id,
                        up.userId AS userId,
                        up.displayName AS displayName,
@@ -199,12 +204,10 @@ try
 
             var cursor = await tx.RunAsync(query, new
             {
-                id = Guid.NewGuid().ToString(),
                 userId,
                 displayName = request.DisplayName,
                 bio = request.Bio ?? string.Empty,
-                avatarUrl = request.AvatarUrl ?? string.Empty,
-                createdAt = DateTime.UtcNow.ToString("o")
+                avatarUrl = request.AvatarUrl ?? string.Empty
             });
 
             var record = await cursor.SingleAsync();
@@ -216,11 +219,16 @@ try
                 DisplayName = record["displayName"].As<string>(),
                 Bio = record["bio"].As<string>(),
                 AvatarUrl = record["avatarUrl"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = DateTimeOffset.FromUnixTimeSeconds(record["createdAt"].As<long>()).DateTime
             };
         });
 
-        Log.Information("Created/Updated profile for user {UserId}", userId);
+        if (profile == null)
+        {
+            return Results.NotFound(new { error = "Profile not found. Profile is created automatically during user registration." });
+        }
+
+        Log.Information("Updated profile for user {UserId}", userId);
 
         return Results.Ok(profile);
     }).RequireAuthorization();
@@ -259,7 +267,7 @@ try
                 DisplayName = record["displayName"].As<string>(),
                 Bio = record["bio"].As<string>(),
                 AvatarUrl = record["avatarUrl"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = DateTimeOffset.FromUnixTimeSeconds(record["createdAt"].As<long>()).DateTime
             }).ToList();
         });
 

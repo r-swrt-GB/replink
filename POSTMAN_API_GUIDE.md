@@ -43,6 +43,8 @@ Content-Type: application/json
 }
 ```
 
+**Note:** Registration automatically creates a user profile with the username as the display name.
+
 ---
 
 ### 1.2 Login
@@ -102,9 +104,9 @@ Authorization: Bearer {YOUR_TOKEN_HERE}
 
 ---
 
-### 2.2 Create/Update User Profile
+### 2.2 Update User Profile
 
-**POST** `/api/users/profile`
+**PUT** `/api/users/profile`
 
 **Headers:**
 ```
@@ -120,6 +122,8 @@ Content-Type: application/json
   "avatarUrl": "https://example.com/avatar.jpg"
 }
 ```
+
+**Note:** Profile is automatically created during registration. This endpoint only updates existing profiles.
 
 **Response (200):**
 ```json

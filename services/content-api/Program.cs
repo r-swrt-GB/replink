@@ -3,6 +3,8 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
 using System.Security.Claims;
+using System.Linq;
+using System.Collections.Generic;
 using Neo4j.Driver;
 
 // Configure Serilog
@@ -183,9 +185,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Caption = record["caption"].As<string>(),
                 MediaUrl = record["mediaUrl"].As<string>(),
-                Hashtags = record["hashtags"].As<string[]>(),
-                ExerciseIds = record["exerciseIds"].As<string[]>(),
-                CreatedAt = record["createdAt"].As<DateTime>(),
+                Hashtags = ConvertToStringArray(record["hashtags"]),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>()),
                 CommentsCount = record["commentsCount"].As<int>(),
                 LikesCount = 0
             };
@@ -209,7 +211,7 @@ try
                 OPTIONAL MATCH (l:Like {postId: p.id})
                 WITH p, count(l) AS likesCount,
                      CASE WHEN $userId IS NOT NULL THEN
-                        EXISTS((l2:Like {postId: p.id, userId: $userId}))
+                        EXISTS { MATCH (l2:Like {postId: p.id, userId: $userId}) }
                      ELSE false END AS hasLiked
                 RETURN p.id AS id,
                        p.userId AS userId,
@@ -239,9 +241,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Caption = record["caption"].As<string>(),
                 MediaUrl = record["mediaUrl"].As<string>(),
-                Hashtags = record["hashtags"].As<string[]>(),
-                ExerciseIds = record["exerciseIds"].As<string[]>(),
-                CreatedAt = record["createdAt"].As<DateTime>(),
+                Hashtags = ConvertToStringArray(record["hashtags"]),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>()),
                 CommentsCount = record["commentsCount"].As<int>(),
                 LikesCount = record["likesCount"].As<int>(),
                 HasLiked = record["hasLiked"].As<bool>()
@@ -264,7 +266,7 @@ try
                 OPTIONAL MATCH (l:Like {postId: p.id})
                 WITH p, count(l) AS likesCount,
                      CASE WHEN $userId IS NOT NULL THEN
-                        EXISTS((l2:Like {postId: p.id, userId: $userId}))
+                        EXISTS { MATCH (l2:Like {postId: p.id, userId: $userId}) }
                      ELSE false END AS hasLiked
                 RETURN p.id AS id,
                        p.userId AS userId,
@@ -291,9 +293,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Caption = record["caption"].As<string>(),
                 MediaUrl = record["mediaUrl"].As<string>(),
-                Hashtags = record["hashtags"].As<string[]>(),
-                ExerciseIds = record["exerciseIds"].As<string[]>(),
-                CreatedAt = record["createdAt"].As<DateTime>(),
+                Hashtags = ConvertToStringArray(record["hashtags"]),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>()),
                 CommentsCount = record["commentsCount"].As<int>(),
                 LikesCount = record["likesCount"].As<int>(),
                 HasLiked = record["hasLiked"].As<bool>()
@@ -321,7 +323,7 @@ try
                 OPTIONAL MATCH (l:Like {postId: p.id})
                 WITH p, count(l) AS likesCount,
                      CASE WHEN $currentUserId IS NOT NULL THEN
-                        EXISTS((l2:Like {postId: p.id, userId: $currentUserId}))
+                        EXISTS { MATCH (l2:Like {postId: p.id, userId: $currentUserId}) }
                      ELSE false END AS hasLiked
                 RETURN p.id AS id,
                        p.userId AS userId,
@@ -352,9 +354,9 @@ try
                 UserId = record["userId"].As<string>(),
                 Caption = record["caption"].As<string>(),
                 MediaUrl = record["mediaUrl"].As<string>(),
-                Hashtags = record["hashtags"].As<string[]>(),
-                ExerciseIds = record["exerciseIds"].As<string[]>(),
-                CreatedAt = record["createdAt"].As<DateTime>(),
+                Hashtags = ConvertToStringArray(record["hashtags"]),
+                ExerciseIds = ConvertToStringArray(record["exerciseIds"]),
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>()),
                 CommentsCount = record["commentsCount"].As<int>(),
                 LikesCount = record["likesCount"].As<int>(),
                 HasLiked = record["hasLiked"].As<bool>()
@@ -416,7 +418,7 @@ try
                 PostId = record["postId"].As<string>(),
                 UserId = record["userId"].As<string>(),
                 Content = record["content"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -450,7 +452,7 @@ try
                 PostId = record["postId"].As<string>(),
                 UserId = record["userId"].As<string>(),
                 Content = record["content"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             }).ToList();
         });
 
@@ -552,7 +554,7 @@ try
                 Id = record["id"].As<string>(),
                 PostId = record["postId"].As<string>(),
                 UserId = record["userId"].As<string>(),
-                CreatedAt = record["createdAt"].As<DateTime>()
+                CreatedAt = ConvertToDateTime(record["createdAt"].As<object>())
             };
         });
 
@@ -640,6 +642,58 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// Helper method to safely convert Neo4j values to string arrays
+static string[] ConvertToStringArray(object value)
+{
+    if (value == null)
+        return Array.Empty<string>();
+
+    if (value is IList<object> list)
+        return list.Select(item => item?.ToString() ?? string.Empty).ToArray();
+
+    if (value is string[] stringArray)
+        return stringArray;
+
+    if (value is IEnumerable<string> stringEnumerable)
+        return stringEnumerable.ToArray();
+
+    return Array.Empty<string>();
+}
+
+// Helper method to safely convert Neo4j temporal values to DateTime
+static DateTime ConvertToDateTime(object value)
+{
+    if (value == null)
+        return DateTime.MinValue;
+
+    // Handle Neo4j.Driver temporal types (ZonedDateTime, LocalDateTime)
+    var valueType = value.GetType();
+
+    // Check if it has ToDateTimeOffset() method (ZonedDateTime)
+    var toDateTimeOffsetMethod = valueType.GetMethod("ToDateTimeOffset");
+    if (toDateTimeOffsetMethod != null)
+    {
+        var dateTimeOffset = (DateTimeOffset)toDateTimeOffsetMethod.Invoke(value, null);
+        return dateTimeOffset.DateTime;
+    }
+
+    // Check if it has ToDateTimeUnspecified() method (LocalDateTime)
+    var toDateTimeUnspecifiedMethod = valueType.GetMethod("ToDateTimeUnspecified");
+    if (toDateTimeUnspecifiedMethod != null)
+    {
+        return (DateTime)toDateTimeUnspecifiedMethod.Invoke(value, null);
+    }
+
+    if (value is DateTime dateTime)
+        return dateTime;
+
+    // Fallback: try to parse as string
+    if (value is string str && DateTime.TryParse(str, out var parsed))
+        return parsed;
+
+    return DateTime.MinValue;
 }
 
 // ========== MODELS ==========
