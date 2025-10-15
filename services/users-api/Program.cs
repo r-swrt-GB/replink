@@ -84,8 +84,37 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
-    // Health endpoint
-    app.MapGet("/api/users/health", () => Results.Ok(new { status = "Healthy", service = "Users API (Neo4j)" }));
+    // Health endpoint with Neo4j connectivity check
+    app.MapGet("/api/users/health", async (IDriver driver) =>
+    {
+        try
+        {
+            await using var session = driver.AsyncSession();
+            await session.ExecuteReadAsync(async tx =>
+            {
+                await tx.RunAsync("RETURN 1");
+            });
+
+            return Results.Ok(new
+            {
+                status = "Healthy",
+                service = "Users API",
+                database = "Neo4j",
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Health check failed for Users API");
+            return Results.Problem(new
+            {
+                status = "Unhealthy",
+                service = "Users API",
+                error = ex.Message,
+                timestamp = DateTime.UtcNow
+            }.ToString());
+        }
+    });
 
     // Get current user profile
     app.MapGet("/api/users/profile", async (HttpContext context, IDriver driver) =>

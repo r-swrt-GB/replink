@@ -13,6 +13,18 @@
       "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
     },
     {
+      "DownstreamPathTemplate": "/api/users/health",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "users-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/users/health",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/users/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
@@ -28,39 +40,15 @@
       }
     },
     {
-      "DownstreamPathTemplate": "/api/health",
+      "DownstreamPathTemplate": "/api/content/health",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "comments-api",
+          "Host": "content-api",
           "Port": 80
         }
       ],
-      "UpstreamPathTemplate": "/api/comments/health",
-      "UpstreamHttpMethod": [ "GET" ]
-    },
-    {
-      "DownstreamPathTemplate": "/api/health",
-      "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [
-        {
-          "Host": "likes-api",
-          "Port": 80
-        }
-      ],
-      "UpstreamPathTemplate": "/api/likes/health",
-      "UpstreamHttpMethod": [ "GET" ]
-    },
-    {
-      "DownstreamPathTemplate": "/api/posts/health",
-      "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [
-        {
-          "Host": "posts-api",
-          "Port": 80
-        }
-      ],
-      "UpstreamPathTemplate": "/api/posts/health",
+      "UpstreamPathTemplate": "/api/content/health",
       "UpstreamHttpMethod": [ "GET" ]
     },
     {
@@ -68,7 +56,7 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "likes-api",
+          "Host": "content-api",
           "Port": 80
         }
       ],
@@ -83,7 +71,7 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "likes-api",
+          "Host": "content-api",
           "Port": 80
         }
       ],
@@ -98,7 +86,7 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "comments-api",
+          "Host": "content-api",
           "Port": 80
         }
       ],
@@ -113,7 +101,7 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "posts-api",
+          "Host": "content-api",
           "Port": 80
         }
       ],
@@ -131,7 +119,7 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "comments-api",
+          "Host": "content-api",
           "Port": 80
         }
       ],
@@ -140,6 +128,18 @@
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"
       }
+    },
+    {
+      "DownstreamPathTemplate": "/api/graph/health",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "socialgraph-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/graph/health",
+      "UpstreamHttpMethod": [ "GET" ]
     },
     {
       "DownstreamPathTemplate": "/api/graph/{everything}",
@@ -157,6 +157,18 @@
       }
     },
     {
+      "DownstreamPathTemplate": "/api/feed/health",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "feed-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/feed/health",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/feed/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
@@ -172,11 +184,23 @@
       }
     },
     {
+      "DownstreamPathTemplate": "/api/fitness/health",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "fitness-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/fitness/health",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/clubs/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "clubs-api",
+          "Host": "fitness-api",
           "Port": 80
         }
       ],
@@ -191,7 +215,7 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "exercises-api",
+          "Host": "fitness-api",
           "Port": 80
         }
       ],
@@ -206,7 +230,7 @@
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         {
-          "Host": "workouts-api",
+          "Host": "fitness-api",
           "Port": 80
         }
       ],
@@ -215,6 +239,18 @@
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"
       }
+    },
+    {
+      "DownstreamPathTemplate": "/api/analytics/health",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "analytics-api",
+          "Port": 80
+        }
+      ],
+      "UpstreamPathTemplate": "/api/analytics/health",
+      "UpstreamHttpMethod": [ "GET" ]
     },
     {
       "DownstreamPathTemplate": "/api/analytics/{everything}",

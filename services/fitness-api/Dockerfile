@@ -6,15 +6,15 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["SocialGraphApi.csproj", "./"]
-RUN dotnet restore "SocialGraphApi.csproj"
+COPY ["FitnessApi.csproj", "./"]
+RUN dotnet restore "FitnessApi.csproj"
 COPY . .
-RUN dotnet build "SocialGraphApi.csproj" -c Release -o /app/build
+RUN dotnet build "FitnessApi.csproj" -c Release -o /app/build
 
 FROM build AS publish
-RUN dotnet publish "SocialGraphApi.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "FitnessApi.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "SocialGraphApi.dll"]
+ENTRYPOINT ["dotnet", "FitnessApi.dll"]

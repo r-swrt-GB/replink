@@ -5,6 +5,8 @@ using System.Text;
 using System.Security.Claims;
 using StackExchange.Redis;
 using System.Text.Json;
+using Polly;
+using Polly.Extensions.Http;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -21,31 +23,40 @@ try
     var redisConnectionString = builder.Configuration["Redis:ConnectionString"] ?? "redis:6379";
     builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
 
+    // Polly retry policy for transient failures
+    var retryPolicy = HttpPolicyExtensions
+        .HandleTransientHttpError()
+        .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        .WaitAndRetryAsync(
+            retryCount: 3,
+            sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+            onRetry: (outcome, timespan, retryAttempt, context) =>
+            {
+                Log.Warning("Retry {RetryAttempt} after {Delay}s due to {Reason}",
+                    retryAttempt, timespan.TotalSeconds, outcome.Exception?.Message ?? outcome.Result?.StatusCode.ToString());
+            });
+
     // Add HttpClient for calling other services
-    builder.Services.AddHttpClient("PostsApi", client =>
+    builder.Services.AddHttpClient("ContentApi", client =>
     {
-        client.BaseAddress = new Uri(builder.Configuration["Services:PostsApi"] ?? "http://posts-api:80");
-    });
+        client.BaseAddress = new Uri(builder.Configuration["Services:ContentApi"] ?? "http://content-api:80");
+        client.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddPolicyHandler(retryPolicy);
 
-    builder.Services.AddHttpClient("LikesApi", client =>
+    builder.Services.AddHttpClient("FitnessApi", client =>
     {
-        client.BaseAddress = new Uri(builder.Configuration["Services:LikesApi"] ?? "http://likes-api:80");
-    });
-
-    builder.Services.AddHttpClient("CommentsApi", client =>
-    {
-        client.BaseAddress = new Uri(builder.Configuration["Services:CommentsApi"] ?? "http://comments-api:80");
-    });
+        client.BaseAddress = new Uri(builder.Configuration["Services:FitnessApi"] ?? "http://fitness-api:80");
+        client.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddPolicyHandler(retryPolicy);
 
     builder.Services.AddHttpClient("SocialGraphApi", client =>
     {
         client.BaseAddress = new Uri(builder.Configuration["Services:SocialGraphApi"] ?? "http://socialgraph-api:80");
-    });
-
-    builder.Services.AddHttpClient("WorkoutsApi", client =>
-    {
-        client.BaseAddress = new Uri(builder.Configuration["Services:WorkoutsApi"] ?? "http://workouts-api:80");
-    });
+        client.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddPolicyHandler(retryPolicy);
 
     // JWT Configuration
     var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "your-super-secret-jwt-key-change-this-in-production";
@@ -85,8 +96,46 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
-    // Health endpoint
-    app.MapGet("/api/analytics/health", () => Results.Ok(new { status = "Healthy", service = "Analytics API" }));
+    // Health endpoint with Redis connectivity check
+    app.MapGet("/api/analytics/health", async (IConnectionMultiplexer redis) =>
+    {
+        try
+        {
+            var redisHealthy = true;
+            var redisError = "";
+
+            try
+            {
+                var db = redis.GetDatabase();
+                await db.PingAsync();
+            }
+            catch (Exception ex)
+            {
+                redisHealthy = false;
+                redisError = ex.Message;
+                Log.Warning(ex, "Redis health check failed");
+            }
+
+            return Results.Ok(new
+            {
+                status = "Healthy",
+                service = "Analytics API",
+                cache = redisHealthy ? "Redis - Connected" : $"Redis - Disconnected: {redisError}",
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Health check failed for Analytics API");
+            return Results.Problem(new
+            {
+                status = "Unhealthy",
+                service = "Analytics API",
+                error = ex.Message,
+                timestamp = DateTime.UtcNow
+            }.ToString());
+        }
+    });
 
     // Get user analytics
     app.MapGet("/api/analytics/user/{userId:guid}", async (
@@ -123,15 +172,15 @@ try
             LastUpdated = DateTime.UtcNow
         };
 
-        // Get posts count
+        // Get posts count from Content API
         try
         {
-            var postsClient = httpClientFactory.CreateClient("PostsApi");
+            var contentClient = httpClientFactory.CreateClient("ContentApi");
             if (!string.IsNullOrEmpty(token))
             {
-                postsClient.DefaultRequestHeaders.Add("Authorization", token);
+                contentClient.DefaultRequestHeaders.Add("Authorization", token);
             }
-            var postsResponse = await postsClient.GetAsync($"/api/posts/user/{userId}");
+            var postsResponse = await contentClient.GetAsync($"/api/posts/user/{userId}");
             if (postsResponse.IsSuccessStatusCode)
             {
                 var posts = await postsResponse.Content.ReadFromJsonAsync<List<PostDto>>();
@@ -150,15 +199,15 @@ try
             Log.Warning(ex, "Failed to fetch posts analytics for user {UserId}", userId);
         }
 
-        // Get workouts count
+        // Get workouts count from Fitness API
         try
         {
-            var workoutsClient = httpClientFactory.CreateClient("WorkoutsApi");
+            var fitnessClient = httpClientFactory.CreateClient("FitnessApi");
             if (!string.IsNullOrEmpty(token))
             {
-                workoutsClient.DefaultRequestHeaders.Add("Authorization", token);
+                fitnessClient.DefaultRequestHeaders.Add("Authorization", token);
             }
-            var workoutsResponse = await workoutsClient.GetAsync($"/api/workouts/user/{userId}");
+            var workoutsResponse = await fitnessClient.GetAsync($"/api/workouts/user/{userId}");
             if (workoutsResponse.IsSuccessStatusCode)
             {
                 var workouts = await workoutsResponse.Content.ReadFromJsonAsync<List<WorkoutDto>>();
@@ -234,15 +283,15 @@ try
             LastUpdated = DateTime.UtcNow
         };
 
-        // Get total posts
+        // Get total posts from Content API
         try
         {
-            var postsClient = httpClientFactory.CreateClient("PostsApi");
+            var contentClient = httpClientFactory.CreateClient("ContentApi");
             if (!string.IsNullOrEmpty(token))
             {
-                postsClient.DefaultRequestHeaders.Add("Authorization", token);
+                contentClient.DefaultRequestHeaders.Add("Authorization", token);
             }
-            var postsResponse = await postsClient.GetAsync("/api/posts?limit=10000");
+            var postsResponse = await contentClient.GetAsync("/api/posts?limit=10000");
             if (postsResponse.IsSuccessStatusCode)
             {
                 var posts = await postsResponse.Content.ReadFromJsonAsync<List<PostDto>>();
@@ -259,15 +308,15 @@ try
             Log.Warning(ex, "Failed to fetch global posts analytics");
         }
 
-        // Get total workouts
+        // Get total workouts from Fitness API
         try
         {
-            var workoutsClient = httpClientFactory.CreateClient("WorkoutsApi");
+            var fitnessClient = httpClientFactory.CreateClient("FitnessApi");
             if (!string.IsNullOrEmpty(token))
             {
-                workoutsClient.DefaultRequestHeaders.Add("Authorization", token);
+                fitnessClient.DefaultRequestHeaders.Add("Authorization", token);
             }
-            var workoutsResponse = await workoutsClient.GetAsync("/api/workouts?limit=10000");
+            var workoutsResponse = await fitnessClient.GetAsync("/api/workouts?limit=10000");
             if (workoutsResponse.IsSuccessStatusCode)
             {
                 var workouts = await workoutsResponse.Content.ReadFromJsonAsync<List<WorkoutDto>>();

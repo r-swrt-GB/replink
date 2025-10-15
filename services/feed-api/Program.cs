@@ -5,6 +5,8 @@ using System.Text;
 using System.Security.Claims;
 using System.Text.Json;
 using StackExchange.Redis;
+using Polly;
+using Polly.Extensions.Http;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -17,18 +19,35 @@ try
 
     builder.Host.UseSerilog();
 
+    // Polly retry policy for transient failures
+    var retryPolicy = HttpPolicyExtensions
+        .HandleTransientHttpError()
+        .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        .WaitAndRetryAsync(
+            retryCount: 3,
+            sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+            onRetry: (outcome, timespan, retryAttempt, context) =>
+            {
+                Log.Warning("Retry {RetryAttempt} after {Delay}s due to {Reason}",
+                    retryAttempt, timespan.TotalSeconds, outcome.Exception?.Message ?? outcome.Result?.StatusCode.ToString());
+            });
+
     // HttpClient for calling other APIs
-    builder.Services.AddHttpClient("PostsApi", client =>
+    builder.Services.AddHttpClient("ContentApi", client =>
     {
-        var postsApiUrl = builder.Configuration["Services:PostsApi"] ?? "http://localhost:5002";
-        client.BaseAddress = new Uri(postsApiUrl);
-    });
+        var contentApiUrl = builder.Configuration["Services:ContentApi"] ?? "http://content-api:80";
+        client.BaseAddress = new Uri(contentApiUrl);
+        client.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddPolicyHandler(retryPolicy);
 
     builder.Services.AddHttpClient("SocialGraphApi", client =>
     {
-        var socialGraphApiUrl = builder.Configuration["Services:SocialGraphApi"] ?? "http://localhost:5004";
+        var socialGraphApiUrl = builder.Configuration["Services:SocialGraphApi"] ?? "http://socialgraph-api:80";
         client.BaseAddress = new Uri(socialGraphApiUrl);
-    });
+        client.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddPolicyHandler(retryPolicy);
 
     // Redis for caching (optional)
     var redisConnection = builder.Configuration["Redis:ConnectionString"];
@@ -75,8 +94,49 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
-    // Health endpoint
-    app.MapGet("/api/feed/health", () => Results.Ok(new { status = "Healthy", service = "Feed API" }));
+    // Health endpoint with Redis connectivity check
+    app.MapGet("/api/feed/health", async (IConnectionMultiplexer? redis) =>
+    {
+        try
+        {
+            var redisHealthy = true;
+            var redisError = "";
+
+            if (redis != null)
+            {
+                try
+                {
+                    var db = redis.GetDatabase();
+                    await db.PingAsync();
+                }
+                catch (Exception ex)
+                {
+                    redisHealthy = false;
+                    redisError = ex.Message;
+                    Log.Warning(ex, "Redis health check failed");
+                }
+            }
+
+            return Results.Ok(new
+            {
+                status = "Healthy",
+                service = "Feed API",
+                cache = redis != null ? (redisHealthy ? "Redis - Connected" : $"Redis - Disconnected: {redisError}") : "Redis - Not Configured",
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Health check failed for Feed API");
+            return Results.Problem(new
+            {
+                status = "Unhealthy",
+                service = "Feed API",
+                error = ex.Message,
+                timestamp = DateTime.UtcNow
+            }.ToString());
+        }
+    });
 
     // Get feed (aggregated posts from followed users)
     app.MapGet("/api/feed", async (HttpContext context, IHttpClientFactory httpClientFactory, IConnectionMultiplexer? redis) =>
@@ -124,15 +184,15 @@ try
                 return Results.Ok(new { posts = new List<object>() });
             }
 
-            // Step 2: Get posts from Posts API for each followed user
-            var postsClient = httpClientFactory.CreateClient("PostsApi");
-            postsClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+            // Step 2: Get posts from Content API for each followed user
+            var contentClient = httpClientFactory.CreateClient("ContentApi");
+            contentClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
 
             var allPosts = new List<object>();
 
             foreach (var followedUserId in feedSources.UserIds)
             {
-                var postsResponse = await postsClient.GetAsync($"/api/posts/user/{followedUserId}?limit=10");
+                var postsResponse = await contentClient.GetAsync($"/api/posts/user/{followedUserId}?limit=10");
                 if (postsResponse.IsSuccessStatusCode)
                 {
                     var postsJson = await postsResponse.Content.ReadAsStringAsync();

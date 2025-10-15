@@ -66,6 +66,56 @@ services:
       retries: 5
 
   # Microservices
+  content-api:
+    build:
+      context: ./services/content-api
+      dockerfile: Dockerfile
+    container_name: replink-content-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/content/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  fitness-api:
+    build:
+      context: ./services/fitness-api
+      dockerfile: Dockerfile
+    container_name: replink-fitness-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Neo4j__Uri=${NEO4J_URI}
+      - Neo4j__User=${NEO4J_USER}
+      - Neo4j__Password=${NEO4J_PASSWORD}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    networks:
+      - replink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/fitness/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   auth-api:
     build:
       context: ./services/auth-api
@@ -84,6 +134,12 @@ services:
         condition: service_healthy
     networks:
       - replink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/auth/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   users-api:
     build:
@@ -103,67 +159,12 @@ services:
         condition: service_healthy
     networks:
       - replink-network
-
-  posts-api:
-    build:
-      context: ./services/posts-api
-      dockerfile: Dockerfile
-    container_name: replink-posts-api
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - Neo4j__Uri=${NEO4J_URI}
-      - Neo4j__User=${NEO4J_USER}
-      - Neo4j__Password=${NEO4J_PASSWORD}
-      - JwtSettings__Secret=${JWT_SECRET}
-      - JwtSettings__Issuer=${JWT_ISSUER}
-      - JwtSettings__Audience=${JWT_AUDIENCE}
-      - RabbitMQ__Host=${RABBITMQ_HOST}
-    depends_on:
-      neo4j:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - replink-network
-
-  comments-api:
-    build:
-      context: ./services/comments-api
-      dockerfile: Dockerfile
-    container_name: replink-comments-api
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:80
-      - Neo4j__Uri=${NEO4J_URI}
-      - Neo4j__User=${NEO4J_USER}
-      - Neo4j__Password=${NEO4J_PASSWORD}
-      - JwtSettings__Secret=${JWT_SECRET}
-      - JwtSettings__Issuer=${JWT_ISSUER}
-      - JwtSettings__Audience=${JWT_AUDIENCE}
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    networks:
-      - replink-network
-
-  likes-api:
-    build:
-      context: ./services/likes-api
-      dockerfile: Dockerfile
-    container_name: replink-likes-api
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - Neo4j__Uri=${NEO4J_URI}
-      - Neo4j__User=${NEO4J_USER}
-      - Neo4j__Password=${NEO4J_PASSWORD}
-      - JwtSettings__Secret=${JWT_SECRET}
-      - JwtSettings__Issuer=${JWT_ISSUER}
-      - JwtSettings__Audience=${JWT_AUDIENCE}
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    networks:
-      - replink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/users/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   socialgraph-api:
     build:
@@ -183,6 +184,12 @@ services:
         condition: service_healthy
     networks:
       - replink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/graph/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   feed-api:
     build:
@@ -195,73 +202,19 @@ services:
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
       - Services__SocialGraphApi=${SOCIALGRAPH_API_URL}
-      - Services__PostsApi=${POSTS_API_URL}
+      - Services__ContentApi=http://content-api:80
       - Redis__ConnectionString=${REDIS_HOST}:${REDIS_PORT}
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - replink-network
-
-  clubs-api:
-    build:
-      context: ./services/clubs-api
-      dockerfile: Dockerfile
-    container_name: replink-clubs-api
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:80
-      - Neo4j__Uri=${NEO4J_URI}
-      - Neo4j__User=${NEO4J_USER}
-      - Neo4j__Password=${NEO4J_PASSWORD}
-      - JwtSettings__Secret=${JWT_SECRET}
-      - JwtSettings__Issuer=${JWT_ISSUER}
-      - JwtSettings__Audience=${JWT_AUDIENCE}
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    networks:
-      - replink-network
-
-  exercises-api:
-    build:
-      context: ./services/exercises-api
-      dockerfile: Dockerfile
-    container_name: replink-exercises-api
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:80
-      - Neo4j__Uri=${NEO4J_URI}
-      - Neo4j__User=${NEO4J_USER}
-      - Neo4j__Password=${NEO4J_PASSWORD}
-      - JwtSettings__Secret=${JWT_SECRET}
-      - JwtSettings__Issuer=${JWT_ISSUER}
-      - JwtSettings__Audience=${JWT_AUDIENCE}
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    networks:
-      - replink-network
-
-  workouts-api:
-    build:
-      context: ./services/workouts-api
-      dockerfile: Dockerfile
-    container_name: replink-workouts-api
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:80
-      - Neo4j__Uri=${NEO4J_URI}
-      - Neo4j__User=${NEO4J_USER}
-      - Neo4j__Password=${NEO4J_PASSWORD}
-      - JwtSettings__Secret=${JWT_SECRET}
-      - JwtSettings__Issuer=${JWT_ISSUER}
-      - JwtSettings__Audience=${JWT_AUDIENCE}
-    depends_on:
-      neo4j:
-        condition: service_healthy
-    networks:
-      - replink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/feed/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   analytics-api:
     build:
@@ -275,16 +228,20 @@ services:
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
       - Redis__ConnectionString=${REDIS_HOST}:${REDIS_PORT}
-      - Services__PostsApi=http://posts-api:80
-      - Services__LikesApi=http://likes-api:80
-      - Services__CommentsApi=http://comments-api:80
+      - Services__ContentApi=http://content-api:80
+      - Services__FitnessApi=http://fitness-api:80
       - Services__SocialGraphApi=http://socialgraph-api:80
-      - Services__WorkoutsApi=http://workouts-api:80
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - replink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/analytics/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # API Gateway
   gateway:
@@ -300,34 +257,28 @@ services:
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
-      - auth-api
-      - users-api
-      - posts-api
-      - comments-api
-      - likes-api
-      - socialgraph-api
-      - feed-api
-      - clubs-api
-      - exercises-api
-      - workouts-api
-      - analytics-api
+      content-api:
+        condition: service_healthy
+      fitness-api:
+        condition: service_healthy
+      auth-api:
+        condition: service_healthy
+      users-api:
+        condition: service_healthy
+      socialgraph-api:
+        condition: service_healthy
+      feed-api:
+        condition: service_healthy
+      analytics-api:
+        condition: service_healthy
     networks:
       - replink-network
-
-  # Frontend
-  frontend:
-    build:
-      context: ./frontend/web
-      dockerfile: Dockerfile
-    container_name: replink-frontend
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_BASE=${VITE_API_BASE}
-    depends_on:
-      - gateway
-    networks:
-      - replink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   neo4j-data:

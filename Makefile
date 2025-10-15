@@ -1,4 +1,4 @@
-.PHONY: help bootstrap build up down logs restart clean migrate seed
+.PHONY: help bootstrap build up down logs restart clean migrate seed health health-all
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -6,11 +6,9 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-bootstrap: ## Initialize the project (copy .env, restore dependencies)
+bootstrap: ## Initialize the project (copy .env)
 	@echo "Bootstrapping RepLink..."
 	@if [ ! -f .env ]; then cp .env.example .env; echo ".env file created from .env.example"; fi
-	@echo "Installing frontend dependencies..."
-	@cd frontend/web && npm install
 	@echo "Bootstrap complete!"
 
 build: ## Build all Docker containers
@@ -20,12 +18,12 @@ build: ## Build all Docker containers
 up: ## Start all services
 	@echo "Starting RepLink services..."
 	docker-compose up -d
-	@echo "Services started! Gateway: http://localhost:8000, Frontend: http://localhost:5173"
+	@echo "Services started! Gateway: http://localhost:8000"
 
 up-build: ## Build and start all services
 	@echo "Building and starting RepLink services..."
 	docker-compose up --build -d
-	@echo "Services started! Gateway: http://localhost:8000, Frontend: http://localhost:5173"
+	@echo "Services started! Gateway: http://localhost:8000"
 
 down: ## Stop all services
 	@echo "Stopping RepLink services..."
@@ -61,6 +59,27 @@ logs-commentslikes: ## View commentslikes-api logs (legacy)
 logs-graph: ## View socialgraph-api logs
 	docker-compose logs -f socialgraph-api
 
+logs-content: ## View content-api logs
+	docker-compose logs -f content-api
+
+logs-fitness: ## View fitness-api logs
+	docker-compose logs -f fitness-api
+
+logs-analytics: ## View analytics-api logs
+	docker-compose logs -f analytics-api
+
+health: ## Run health check script for all services
+	@bash scripts/health-check.sh
+
+health-gateway: ## Check gateway health
+	@curl -s http://localhost:8000/health | python3 -m json.tool || echo "Gateway not accessible"
+
+health-all: ## Check aggregated health status
+	@curl -s http://localhost:8000/health/all | python3 -m json.tool || echo "Health endpoint not accessible"
+
+health-docker: ## Show Docker container health status
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
 restart: ## Restart all services
 	@echo "Restarting RepLink services..."
 	docker-compose restart
@@ -93,9 +112,6 @@ shell-gateway: ## Open shell in gateway container
 
 shell-neo4j: ## Open Neo4j cypher-shell
 	docker-compose exec neo4j cypher-shell -u neo4j -p replinkneo4j
-
-dev-frontend: ## Run frontend in dev mode (outside Docker)
-	cd frontend/web && npm run dev
 
 test: ## Run tests
 	@echo "Running tests..."

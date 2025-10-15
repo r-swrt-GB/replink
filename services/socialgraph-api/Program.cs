@@ -61,8 +61,37 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
-    // Health endpoint
-    app.MapGet("/api/graph/health", () => Results.Ok(new { status = "Healthy", service = "SocialGraph API" }));
+    // Health endpoint with Neo4j connectivity check
+    app.MapGet("/api/graph/health", async (IDriver driver) =>
+    {
+        try
+        {
+            await using var session = driver.AsyncSession();
+            await session.ExecuteReadAsync(async tx =>
+            {
+                await tx.RunAsync("RETURN 1");
+            });
+
+            return Results.Ok(new
+            {
+                status = "Healthy",
+                service = "SocialGraph API",
+                database = "Neo4j",
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Health check failed for SocialGraph API");
+            return Results.Problem(new
+            {
+                status = "Unhealthy",
+                service = "SocialGraph API",
+                error = ex.Message,
+                timestamp = DateTime.UtcNow
+            }.ToString());
+        }
+    });
 
     // Follow user
     app.MapPost("/api/graph/follow/{targetUserId:guid}", async (Guid targetUserId, HttpContext context, IDriver driver) =>
