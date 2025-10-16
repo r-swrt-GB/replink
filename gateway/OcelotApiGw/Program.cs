@@ -21,7 +21,7 @@ try
     builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: true);
 
     // Configure JWT Authentication
-    var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "your-super-secret-jwt-key-change-this-in-production";
+    var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "SuperSecretKeyHere";
     var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "RepLink";
     var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "RepLink";
 
